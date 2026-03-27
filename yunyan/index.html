@@ -1,0 +1,3137 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>云研 ELN</title>
+
+    <!-- Tailwind CSS (CDN) -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+      tailwind.config = {
+        theme: {
+          extend: {
+            fontFamily: {
+              mono: [
+                "ui-monospace",
+                "SFMono-Regular",
+                "Menlo",
+                "Monaco",
+                "Consolas",
+                "Liberation Mono",
+                "Courier New",
+                "monospace",
+              ],
+            },
+            boxShadow: {
+              glow: "0 0 0 1px rgba(99,102,241,.5), 0 0 30px rgba(99,102,241,.22)",
+            },
+            keyframes: {
+              shimmer: {
+                "0%": { backgroundPosition: "-200% 0" },
+                "100%": { backgroundPosition: "200% 0" },
+              },
+              pulseRing: {
+                "0%": { transform: "scale(.85)", opacity: ".55" },
+                "60%": { transform: "scale(1.2)", opacity: ".25" },
+                "100%": { transform: "scale(1.35)", opacity: "0" },
+              },
+            },
+            animation: {
+              shimmer: "shimmer 2.2s linear infinite",
+              pulseRing: "pulseRing 1.4s ease-out infinite",
+            },
+          },
+        },
+      };
+    </script>
+
+    <style>
+      html,
+      body {
+        height: 100%;
+        background: #070a12;
+      }
+      /* 极简极客：细网格背景 */
+      .grid-bg {
+        background-image: linear-gradient(
+            rgba(255, 255, 255, 0.04) 1px,
+            transparent 1px
+          ),
+          linear-gradient(90deg, rgba(255, 255, 255, 0.04) 1px, transparent 1px);
+        background-size: 28px 28px;
+      }
+      /* 滚动条更克制 */
+      ::-webkit-scrollbar {
+        width: 10px;
+        height: 10px;
+      }
+      ::-webkit-scrollbar-thumb {
+        background: rgba(255, 255, 255, 0.12);
+        border-radius: 999px;
+        border: 2px solid rgba(0, 0, 0, 0);
+        background-clip: padding-box;
+      }
+      ::-webkit-scrollbar-track {
+        background: rgba(255, 255, 255, 0.04);
+      }
+      /* 虚拟鼠标光标 */
+      .demo-cursor {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 20px;
+        height: 20px;
+        transform: translate(-100px, -100px);
+        z-index: 999999;
+        pointer-events: none;
+      }
+      .demo-cursor:before {
+        content: "";
+        position: absolute;
+        width: 18px;
+        height: 18px;
+        border-radius: 999px;
+        background: rgba(99, 102, 241, 0.85);
+        box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.25),
+          0 0 30px rgba(99, 102, 241, 0.35);
+      }
+      .demo-cursor:after {
+        content: "";
+        position: absolute;
+        left: 14px;
+        top: 12px;
+        width: 0;
+        height: 0;
+        border-left: 10px solid rgba(255, 255, 255, 0.85);
+        border-top: 6px solid transparent;
+        border-bottom: 6px solid transparent;
+        filter: drop-shadow(0 0 10px rgba(255, 255, 255, 0.25));
+        transform: rotate(-18deg);
+      }
+      .demo-click {
+        position: fixed;
+        width: 22px;
+        height: 22px;
+        border-radius: 999px;
+        border: 2px solid rgba(99, 102, 241, 0.9);
+        z-index: 999998;
+        pointer-events: none;
+        transform: translate(-100px, -100px);
+        opacity: 0;
+      }
+      .demo-toast {
+        position: fixed;
+        right: 16px;
+        bottom: 16px;
+        z-index: 999997;
+        pointer-events: none;
+        max-width: min(520px, calc(100vw - 32px));
+      }
+      .demo-toast > div {
+        background: rgba(10, 14, 24, 0.72);
+        border: 1px solid rgba(255, 255, 255, 0.09);
+        box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.03),
+          0 20px 60px rgba(0, 0, 0, 0.55);
+        backdrop-filter: blur(12px);
+      }
+      /* 引导时的元素高亮框 */
+      .demo-spotlight {
+        position: absolute;
+        inset: -6px;
+        border-radius: 14px;
+        border: 1px solid rgba(99, 102, 241, 0.5);
+        box-shadow: 0 0 0 1px rgba(99, 102, 241, 0.18),
+          0 0 40px rgba(99, 102, 241, 0.18);
+        pointer-events: none;
+      }
+      .demo-ring {
+        position: absolute;
+        inset: -12px;
+        border-radius: 16px;
+        border: 2px solid rgba(99, 102, 241, 0.22);
+        pointer-events: none;
+      }
+    </style>
+  </head>
+
+  <body class="text-slate-100 font-mono grid-bg">
+    <div id="root"></div>
+
+    <!-- React 18 + ReactDOM 18 (UMD) -->
+    <script src="https://unpkg.com/react@18/umd/react.development.js" crossorigin></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js" crossorigin></script>
+
+    <!-- Babel (in-browser JSX) -->
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+    <script type="text/babel">
+      const { useEffect, useMemo, useRef, useState } = React;
+
+      const PAGES = [
+        { id: "dashboard", name: "工作台看板" },
+        { id: "newExp", name: "新建实验" },
+        { id: "login", name: "登录" },
+        { id: "register", name: "注册" },
+        { id: "landing", name: "产品官网Landing" },
+        { id: "projects", name: "项目管理" },
+        { id: "projectDetail", name: "项目详情" },
+        { id: "records", name: "实验记录列表" },
+        { id: "recordReadonly", name: "实验只读预览" },
+        { id: "analytics", name: "数据图表分析" },
+        { id: "docs", name: "文档资料库" },
+        { id: "sop", name: "SOP模板库" },
+        { id: "team", name: "团队成员管理" },
+        { id: "rbac", name: "权限配置" },
+        { id: "audit", name: "操作日志" },
+        { id: "inbox", name: "站内信通知" },
+        { id: "prefs", name: "个人偏好" },
+        { id: "security", name: "账号安全" },
+        { id: "storage", name: "存储空间分析" },
+        { id: "helpdesk", name: "帮助文档工单" },
+      ];
+
+      function cx(...xs) {
+        return xs.filter(Boolean).join(" ");
+      }
+
+      function Badge({ children, tone = "indigo" }) {
+        const map = {
+          indigo: "bg-indigo-500/10 text-indigo-200 border-indigo-400/20",
+          emerald: "bg-emerald-500/10 text-emerald-200 border-emerald-400/20",
+          amber: "bg-amber-500/10 text-amber-200 border-amber-400/20",
+          rose: "bg-rose-500/10 text-rose-200 border-rose-400/20",
+          slate: "bg-slate-500/10 text-slate-200 border-slate-400/20",
+        };
+        return (
+          <span
+            className={cx(
+              "inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs",
+              map[tone] || map.indigo
+            )}
+          >
+            <span className="h-1.5 w-1.5 rounded-full bg-current opacity-70"></span>
+            {children}
+          </span>
+        );
+      }
+
+      function Card({ title, right, children }) {
+        return (
+          <div className="rounded-2xl border border-white/10 bg-slate-950/60 backdrop-blur p-4 shadow-[0_0_0_1px_rgba(255,255,255,.03)]">
+            <div className="flex items-center justify-between gap-3">
+              <div className="text-sm text-slate-200">{title}</div>
+              {right ? <div className="text-xs text-slate-400">{right}</div> : null}
+            </div>
+            <div className="mt-4">{children}</div>
+          </div>
+        );
+      }
+
+      function TreeSection({ title, children, defaultOpen = true }) {
+        const [open, setOpen] = useState(defaultOpen);
+        return (
+          <div className="mt-2">
+            <button
+              className="w-full flex items-center justify-between rounded-lg px-2 py-2 text-left text-xs text-slate-300 hover:bg-white/5"
+              onClick={() => setOpen((v) => !v)}
+              type="button"
+            >
+              <span className="tracking-wide">{title}</span>
+              <span className="text-slate-500">{open ? "—" : "+"}</span>
+            </button>
+            {open ? <div className="mt-1 space-y-1">{children}</div> : null}
+          </div>
+        );
+      }
+
+      function NavItem({ active, label, onClick, idForDemo }) {
+        return (
+          <button
+            id={idForDemo}
+            type="button"
+            onClick={onClick}
+            className={cx(
+              "w-full rounded-xl px-3 py-2 text-left text-sm transition border",
+              active
+                ? "bg-white/8 border-indigo-400/25 shadow-glow text-white"
+                : "bg-transparent border-white/0 text-slate-300 hover:bg-white/5 hover:border-white/10"
+            )}
+          >
+            <div className="flex items-center justify-between gap-3">
+              <span className="truncate">{label}</span>
+              {active ? (
+                <span className="text-[10px] text-indigo-200/90">ACTIVE</span>
+              ) : null}
+            </div>
+          </button>
+        );
+      }
+
+      function RichTextMock({ value, onChange, placeholder = "在此输入实验步骤、观察与结论…" }) {
+        const ref = useRef(null);
+        useEffect(() => {
+          if (!ref.current) return;
+          if (ref.current.innerHTML !== value) {
+            ref.current.innerHTML = value || "";
+          }
+        }, [value]);
+
+        return (
+          <div className="rounded-2xl border border-white/10 bg-black/30">
+            <div className="flex items-center justify-between px-3 py-2 border-b border-white/10">
+              <div className="text-xs text-slate-300">富文本编辑器</div>
+              <div className="flex items-center gap-2 text-[10px] text-slate-500">
+                <span className="px-2 py-1 rounded-lg border border-white/10 bg-white/5">
+                  Ctrl/Cmd + B
+                </span>
+                <span className="px-2 py-1 rounded-lg border border-white/10 bg-white/5">
+                  Ctrl/Cmd + I
+                </span>
+              </div>
+            </div>
+            <div
+              ref={ref}
+              contentEditable
+              suppressContentEditableWarning
+              className="min-h-[180px] px-3 py-3 text-sm leading-relaxed text-slate-100 outline-none"
+              onInput={(e) => onChange(e.currentTarget.innerHTML)}
+              onKeyDown={(e) => {
+                if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "b") {
+                  e.preventDefault();
+                  document.execCommand("bold");
+                }
+                if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "i") {
+                  e.preventDefault();
+                  document.execCommand("italic");
+                }
+              }}
+              data-placeholder={placeholder}
+              style={{
+                caretColor: "rgb(165 180 252)",
+              }}
+            />
+            <style>
+              {`
+                [contenteditable][data-placeholder]:empty:before {
+                  content: attr(data-placeholder);
+                  color: rgba(148,163,184,.65);
+                }
+              `}
+            </style>
+          </div>
+        );
+      }
+
+      function Dropzone({ idForDemo, files, setFiles, uploading, setUploading }) {
+        const [hover, setHover] = useState(false);
+        const [progress, setProgress] = useState(0);
+        const inputRef = useRef(null);
+
+        function fakeUpload(newFiles) {
+          setUploading(true);
+          setProgress(0);
+          const start = Date.now();
+          const duration = 4200;
+          const tick = () => {
+            const t = Math.min(1, (Date.now() - start) / duration);
+            const eased = 1 - Math.pow(1 - t, 3);
+            setProgress(Math.round(eased * 100));
+            if (t < 1) requestAnimationFrame(tick);
+            else {
+              setUploading(false);
+            }
+          };
+          requestAnimationFrame(tick);
+          setFiles((prev) => [...prev, ...newFiles]);
+        }
+
+        // 让 onboarding 能触发真实的“上传进度条”
+        useEffect(() => {
+          const onDemoUpload = (e) => {
+            const demoFiles = (e.detail?.files || []).map((f) => ({
+              name: f.name,
+              size: f.size,
+            }));
+            if (!demoFiles.length) return;
+            fakeUpload(demoFiles);
+          };
+          window.addEventListener("yunyan_demo_upload", onDemoUpload);
+          return () => window.removeEventListener("yunyan_demo_upload", onDemoUpload);
+          // eslint-disable-next-line react-hooks/exhaustive-deps
+        }, []);
+
+        const onDrop = (e) => {
+          e.preventDefault();
+          setHover(false);
+          const dropped = Array.from(e.dataTransfer.files || []);
+          if (dropped.length) fakeUpload(dropped);
+        };
+
+        return (
+          <div className="space-y-3">
+            <div
+              id={idForDemo}
+              className={cx(
+                "rounded-2xl border border-dashed p-4 transition relative overflow-hidden",
+                hover
+                  ? "border-indigo-300/60 bg-indigo-500/10"
+                  : "border-white/12 bg-black/20"
+              )}
+              onDragOver={(e) => {
+                e.preventDefault();
+                setHover(true);
+              }}
+              onDragLeave={() => setHover(false)}
+              onDrop={onDrop}
+            >
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <div className="text-sm text-slate-100">拖拽上传</div>
+                  <div className="mt-1 text-xs text-slate-400">
+                    支持图表/数据文件（上传将显示进度并写入附件列表）
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs text-slate-200 hover:bg-white/10"
+                    onClick={() => inputRef.current?.click()}
+                    disabled={uploading}
+                  >
+                    选择文件
+                  </button>
+                  <input
+                    ref={inputRef}
+                    className="hidden"
+                    type="file"
+                    accept=".csv,.xlsx,.png,.jpg,.jpeg,.json,.txt"
+                    multiple
+                    onChange={(e) => {
+                      const picked = Array.from(e.target.files || []);
+                      if (picked.length) fakeUpload(picked);
+                      e.target.value = "";
+                    }}
+                  />
+                </div>
+              </div>
+
+              {uploading ? (
+                <div className="mt-4">
+                  <div className="flex items-center justify-between text-[11px] text-slate-400">
+                    <span>上传中…</span>
+                    <span>{progress}%</span>
+                  </div>
+                  <div className="mt-2 h-2 rounded-full bg-white/10 overflow-hidden">
+                    <div
+                      className="h-2 rounded-full bg-indigo-400/80"
+                      style={{ width: `${progress}%` }}
+                    ></div>
+                  </div>
+                </div>
+              ) : null}
+
+              <div className="pointer-events-none absolute inset-0 opacity-30">
+                <div className="absolute -inset-x-40 top-10 h-12 bg-gradient-to-r from-transparent via-white/10 to-transparent bg-[length:200%_100%] animate-shimmer"></div>
+              </div>
+            </div>
+
+            <div className="rounded-2xl border border-white/10 bg-black/20 p-3">
+              <div className="text-xs text-slate-300 flex items-center justify-between">
+                <span>已上传文件</span>
+                <button
+                  type="button"
+                  className="text-[11px] text-slate-400 hover:text-slate-200"
+                  onClick={() => setFiles([])}
+                >
+                  清空
+                </button>
+              </div>
+              <div className="mt-2 space-y-2">
+                {files.length ? (
+                  files.map((f, idx) => (
+                    <div
+                      key={`${f.name}-${idx}`}
+                      className="flex items-center justify-between gap-3 rounded-xl border border-white/10 bg-white/5 px-3 py-2"
+                    >
+                      <div className="min-w-0">
+                        <div className="truncate text-xs text-slate-100">{f.name}</div>
+                        <div className="text-[11px] text-slate-500">
+                          {Math.max(1, Math.round((f.size || 1024) / 1024))} KB
+                        </div>
+                      </div>
+                      <span className="text-[10px] text-emerald-200 border border-emerald-400/20 bg-emerald-500/10 rounded-full px-2 py-1">
+                        STORED
+                      </span>
+                    </div>
+                  ))
+                ) : (
+                  <div className="text-xs text-slate-500 py-4 text-center">
+                    尚无文件。你可以拖拽一个图表或数据文件进来。
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        );
+      }
+
+      function DataTable({ rows }) {
+        const [sort, setSort] = useState({ key: "updatedAt", dir: "desc" });
+        const [query, setQuery] = useState("");
+        const [page, setPage] = useState(1);
+        const pageSize = 8;
+
+        const filtered = useMemo(() => {
+          const q = query.trim().toLowerCase();
+          const base = q
+            ? rows.filter((r) =>
+                Object.values(r).some((v) => String(v).toLowerCase().includes(q))
+              )
+            : rows;
+          const sorted = [...base].sort((a, b) => {
+            const av = a[sort.key];
+            const bv = b[sort.key];
+            const cmp =
+              av === bv ? 0 : av > bv ? 1 : -1;
+            return sort.dir === "asc" ? cmp : -cmp;
+          });
+          return sorted;
+        }, [rows, query, sort]);
+
+        const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
+        useEffect(() => {
+          setPage(1);
+        }, [query, sort.key, sort.dir]);
+
+        const pageRows = filtered.slice((page - 1) * pageSize, page * pageSize);
+
+        const th = (key, label) => (
+          <button
+            type="button"
+            className="group inline-flex items-center gap-2 hover:text-white"
+            onClick={() =>
+              setSort((s) => ({
+                key,
+                dir: s.key === key ? (s.dir === "asc" ? "desc" : "asc") : "desc",
+              }))
+            }
+          >
+            <span>{label}</span>
+            <span className="text-[10px] text-slate-500 group-hover:text-slate-300">
+              {sort.key === key ? (sort.dir === "asc" ? "↑" : "↓") : "↕"}
+            </span>
+          </button>
+        );
+
+        return (
+          <div className="rounded-2xl border border-white/10 bg-black/20 overflow-hidden">
+            <div className="flex items-center justify-between gap-3 px-3 py-3 border-b border-white/10">
+              <div className="text-xs text-slate-300">复杂表格控件（排序 / 搜索 / 分页）</div>
+              <input
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                placeholder="搜索任意字段…"
+                className="w-56 max-w-[55vw] rounded-xl border border-white/10 bg-black/40 px-3 py-2 text-xs text-slate-100 outline-none focus:border-indigo-400/40"
+              />
+            </div>
+
+            <div className="overflow-auto">
+              <table className="min-w-[860px] w-full text-left">
+                <thead className="bg-slate-950/50">
+                  <tr className="text-xs text-slate-400">
+                    <th className="px-3 py-3">{th("title", "记录标题")}</th>
+                    <th className="px-3 py-3">{th("project", "项目")}</th>
+                    <th className="px-3 py-3">{th("owner", "负责人")}</th>
+                    <th className="px-3 py-3">{th("status", "状态")}</th>
+                    <th className="px-3 py-3">{th("updatedAt", "更新时间")}</th>
+                    <th className="px-3 py-3">{th("tags", "标签")}</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {pageRows.map((r) => (
+                    <tr
+                      key={r.id}
+                      className="border-t border-white/10 text-xs text-slate-200 hover:bg-white/5"
+                    >
+                      <td className="px-3 py-3">
+                        <div className="font-medium text-slate-100">{r.title}</div>
+                        <div className="text-[11px] text-slate-500">#{r.id}</div>
+                      </td>
+                      <td className="px-3 py-3 text-slate-300">{r.project}</td>
+                      <td className="px-3 py-3 text-slate-300">{r.owner}</td>
+                      <td className="px-3 py-3">
+                        <span
+                          className={cx(
+                            "inline-flex items-center rounded-full border px-2 py-1 text-[10px]",
+                            r.status === "进行中"
+                              ? "border-amber-400/20 bg-amber-500/10 text-amber-200"
+                              : r.status === "已归档"
+                              ? "border-slate-400/20 bg-slate-500/10 text-slate-200"
+                              : "border-emerald-400/20 bg-emerald-500/10 text-emerald-200"
+                          )}
+                        >
+                          {r.status}
+                        </span>
+                      </td>
+                      <td className="px-3 py-3 text-slate-400">{r.updatedAt}</td>
+                      <td className="px-3 py-3">
+                        <div className="flex flex-wrap gap-1">
+                          {r.tags.map((t) => (
+                            <span
+                              key={t}
+                              className="rounded-full border border-white/10 bg-white/5 px-2 py-1 text-[10px] text-slate-300"
+                            >
+                              {t}
+                            </span>
+                          ))}
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                  {!pageRows.length ? (
+                    <tr className="border-t border-white/10">
+                      <td className="px-3 py-6 text-center text-xs text-slate-500" colSpan={6}>
+                        没有匹配的记录
+                      </td>
+                    </tr>
+                  ) : null}
+                </tbody>
+              </table>
+            </div>
+
+            <div className="flex items-center justify-between px-3 py-3 border-t border-white/10 text-xs text-slate-400">
+              <div>
+                {filtered.length} 条 · 第 {page} / {totalPages} 页
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs text-slate-200 hover:bg-white/10 disabled:opacity-40"
+                  onClick={() => setPage((p) => Math.max(1, p - 1))}
+                  disabled={page <= 1}
+                >
+                  上一页
+                </button>
+                <button
+                  type="button"
+                  className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs text-slate-200 hover:bg-white/10 disabled:opacity-40"
+                  onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                  disabled={page >= totalPages}
+                >
+                  下一页
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      }
+
+      function MiniChart({ title = "上传图表预览（模拟）" }) {
+        const points = useMemo(() => {
+          // 生成一条“实验曲线”
+          const n = 18;
+          const arr = [];
+          let v = 42;
+          for (let i = 0; i < n; i++) {
+            v += (Math.random() - 0.45) * 12;
+            v = Math.max(10, Math.min(95, v));
+            arr.push(v);
+          }
+          return arr;
+        }, []);
+
+        const d = useMemo(() => {
+          const w = 260,
+            h = 84,
+            pad = 8;
+          const xs = points.map((_, i) => pad + (i * (w - pad * 2)) / (points.length - 1));
+          const ys = points.map((p) => pad + ((100 - p) * (h - pad * 2)) / 100);
+          let path = `M ${xs[0].toFixed(1)} ${ys[0].toFixed(1)}`;
+          for (let i = 1; i < xs.length; i++) {
+            path += ` L ${xs[i].toFixed(1)} ${ys[i].toFixed(1)}`;
+          }
+          return { path, w, h };
+        }, [points]);
+
+        return (
+          <div className="rounded-2xl border border-white/10 bg-black/20 p-3">
+            <div className="flex items-center justify-between">
+              <div className="text-xs text-slate-300">{title}</div>
+              <Badge tone="emerald">LIVE</Badge>
+            </div>
+            <div className="mt-3 flex items-center gap-3">
+              <svg
+                width="260"
+                height="84"
+                viewBox={`0 0 ${d.w} ${d.h}`}
+                className="rounded-xl border border-white/10 bg-slate-950/40"
+              >
+                <defs>
+                  <linearGradient id="g1" x1="0" y1="0" x2="1" y2="0">
+                    <stop offset="0%" stopColor="rgba(99,102,241,.1)" />
+                    <stop offset="50%" stopColor="rgba(99,102,241,.4)" />
+                    <stop offset="100%" stopColor="rgba(16,185,129,.25)" />
+                  </linearGradient>
+                </defs>
+                <path d={d.path} fill="none" stroke="url(#g1)" strokeWidth="2.4" />
+                <path
+                  d={`${d.path} L ${d.w - 8} ${d.h - 8} L 8 ${d.h - 8} Z`}
+                  fill="rgba(99,102,241,.08)"
+                />
+              </svg>
+              <div className="min-w-0 flex-1">
+                <div className="text-xs text-slate-400">
+                  自动生成的曲线用于呈现“上传→预览→分析”的 UX 流程。
+                </div>
+                <div className="mt-2 grid grid-cols-3 gap-2">
+                  <div className="rounded-xl border border-white/10 bg-white/5 p-2">
+                    <div className="text-[10px] text-slate-500">峰值</div>
+                    <div className="mt-1 text-sm text-slate-100">
+                      {Math.max(...points).toFixed(0)}
+                    </div>
+                  </div>
+                  <div className="rounded-xl border border-white/10 bg-white/5 p-2">
+                    <div className="text-[10px] text-slate-500">均值</div>
+                    <div className="mt-1 text-sm text-slate-100">
+                      {(points.reduce((a, b) => a + b, 0) / points.length).toFixed(0)}
+                    </div>
+                  </div>
+                  <div className="rounded-xl border border-white/10 bg-white/5 p-2">
+                    <div className="text-[10px] text-slate-500">斜率</div>
+                    <div className="mt-1 text-sm text-slate-100">
+                      {((points[points.length - 1] - points[0]) / points.length).toFixed(1)}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        );
+      }
+
+      function PageShell({ title, subtitle, children, actions }) {
+        return (
+          <div className="h-full flex flex-col">
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0">
+                <div className="text-lg text-white truncate">{title}</div>
+                {subtitle ? (
+                  <div className="mt-1 text-xs text-slate-400">{subtitle}</div>
+                ) : null}
+              </div>
+              {actions ? <div className="shrink-0">{actions}</div> : null}
+            </div>
+            <div className="mt-4 flex-1 min-h-0">{children}</div>
+          </div>
+        );
+      }
+
+      function DashboardView({ go, demoState }) {
+        return (
+          <PageShell
+            title="工作台看板"
+            subtitle="极简、极客、操作高效。首次进入将自动触发一次新手引导（≥30秒）。"
+            actions={
+              <div className="flex items-center gap-2">
+                <span className="text-[10px] text-slate-400">
+                  引导状态：{demoState.running ? "RUNNING" : demoState.done ? "DONE" : "IDLE"}
+                </span>
+                <Badge tone="indigo">SaaS</Badge>
+              </div>
+            }
+          >
+            <div className="grid grid-cols-12 gap-4 h-full">
+              <div className="col-span-12 xl:col-span-7 space-y-4">
+                <Card
+                  title="快捷动作"
+                  right="键盘优先 · 低干扰"
+                >
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                    <button
+                      id="demo-newexp-btn"
+                      type="button"
+                      onClick={() => go("newExp")}
+                      className="group rounded-2xl border border-indigo-400/25 bg-indigo-500/10 px-4 py-4 text-left hover:bg-indigo-500/15 hover:border-indigo-300/35 transition shadow-glow"
+                    >
+                      <div className="text-xs text-indigo-200/90">+ New</div>
+                      <div className="mt-2 text-sm text-white">新建实验</div>
+                      <div className="mt-1 text-xs text-indigo-200/70">
+                        一键创建记录并开始填写
+                      </div>
+                      <div className="mt-3 text-[10px] text-indigo-200/70">
+                        快捷键：N
+                      </div>
+                    </button>
+                    <button
+                      type="button"
+                      className="rounded-2xl border border-white/10 bg-white/5 px-4 py-4 text-left hover:bg-white/8 transition"
+                      onClick={() => go("records")}
+                    >
+                      <div className="text-xs text-slate-400">Browse</div>
+                      <div className="mt-2 text-sm text-white">实验记录列表</div>
+                      <div className="mt-1 text-xs text-slate-400">
+                        快速筛选、排序、批量归档
+                      </div>
+                      <div className="mt-3 text-[10px] text-slate-500">
+                        快捷键：G
+                      </div>
+                    </button>
+                    <button
+                      type="button"
+                      className="rounded-2xl border border-white/10 bg-white/5 px-4 py-4 text-left hover:bg-white/8 transition"
+                      onClick={() => go("analytics")}
+                    >
+                      <div className="text-xs text-slate-400">Analyze</div>
+                      <div className="mt-2 text-sm text-white">数据图表分析</div>
+                      <div className="mt-1 text-xs text-slate-400">
+                        上传→预览→趋势与异常点
+                      </div>
+                      <div className="mt-3 text-[10px] text-slate-500">
+                        快捷键：A
+                      </div>
+                    </button>
+                  </div>
+                </Card>
+
+                <Card title="最近实验" right="只展示示例数据">
+                  <DataTable
+                    rows={Array.from({ length: 18 }).map((_, i) => ({
+                      id: 1000 + i,
+                      title: ["蛋白纯化", "PCR 扩增", "细胞培养", "溶液配制", "材料表征"][
+                        i % 5
+                      ] + " · RUN " + (i + 1),
+                      project: ["Alpha", "Beta", "Gamma", "Delta"][i % 4],
+                      owner: ["Lin", "Qian", "Wei", "Zhou"][i % 4],
+                      status: ["进行中", "已完成", "已归档"][i % 3],
+                      updatedAt: `2026-03-${String(26 - (i % 9)).padStart(2, "0")} ${
+                        10 + (i % 9)
+                      }:${String((i * 7) % 60).padStart(2, "0")}`,
+                      tags: [
+                        ["SOP", "QC"],
+                        ["RAW", "图谱"],
+                        ["批次", "复现"],
+                        ["对照", "温控"],
+                      ][i % 4],
+                    }))}
+                  />
+                </Card>
+              </div>
+
+              <div className="col-span-12 xl:col-span-5 space-y-4">
+                <Card title="系统健康度" right="实时">
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="rounded-2xl border border-white/10 bg-white/5 p-3">
+                      <div className="text-[10px] text-slate-500">写入延迟</div>
+                      <div className="mt-1 text-2xl text-white">
+                        {Math.round(12 + Math.random() * 9)}ms
+                      </div>
+                      <div className="mt-2 text-xs text-emerald-200">
+                        stable
+                      </div>
+                    </div>
+                    <div className="rounded-2xl border border-white/10 bg-white/5 p-3">
+                      <div className="text-[10px] text-slate-500">存储利用率</div>
+                      <div className="mt-1 text-2xl text-white">
+                        {Math.round(38 + Math.random() * 12)}%
+                      </div>
+                      <div className="mt-2 text-xs text-amber-200">
+                        watch
+                      </div>
+                    </div>
+                    <div className="rounded-2xl border border-white/10 bg-white/5 p-3">
+                      <div className="text-[10px] text-slate-500">审计队列</div>
+                      <div className="mt-1 text-2xl text-white">
+                        {Math.round(4 + Math.random() * 6)}
+                      </div>
+                      <div className="mt-2 text-xs text-slate-300">events</div>
+                    </div>
+                    <div className="rounded-2xl border border-white/10 bg-white/5 p-3">
+                      <div className="text-[10px] text-slate-500">项目数</div>
+                      <div className="mt-1 text-2xl text-white">
+                        {Math.round(7 + Math.random() * 4)}
+                      </div>
+                      <div className="mt-2 text-xs text-slate-300">active</div>
+                    </div>
+                  </div>
+                </Card>
+
+                <MiniChart />
+                <Card title="快捷帮助" right="命令面板：Ctrl+K">
+                  <div className="space-y-2 text-xs text-slate-400">
+                    <div className="flex items-center justify-between rounded-xl border border-white/10 bg-white/5 px-3 py-2">
+                      <span>新建实验</span>
+                      <span className="text-slate-300">N</span>
+                    </div>
+                    <div className="flex items-center justify-between rounded-xl border border-white/10 bg-white/5 px-3 py-2">
+                      <span>跳转列表</span>
+                      <span className="text-slate-300">G</span>
+                    </div>
+                    <div className="flex items-center justify-between rounded-xl border border-white/10 bg-white/5 px-3 py-2">
+                      <span>打开分析</span>
+                      <span className="text-slate-300">A</span>
+                    </div>
+                    <div className="flex items-center justify-between rounded-xl border border-white/10 bg-white/5 px-3 py-2">
+                      <span>侧边栏折叠</span>
+                      <span className="text-slate-300">Ctrl+B</span>
+                    </div>
+                  </div>
+                </Card>
+              </div>
+            </div>
+          </PageShell>
+        );
+      }
+
+      function NewExperimentView({ model, setModel, onSave }) {
+        return (
+          <PageShell
+            title="新建实验"
+            subtitle="核心控件：标题输入 + 富文本编辑 + 拖拽上传 + 表格关联。"
+            actions={<Badge tone="indigo">ELN</Badge>}
+          >
+            <div className="grid grid-cols-12 gap-4 h-full">
+              <div className="col-span-12 xl:col-span-7 space-y-4">
+                <Card title="基础信息" right="自动保存">
+                  <div className="space-y-3">
+                    <label className="block">
+                      <div className="text-xs text-slate-400 mb-1">实验标题</div>
+                      <input
+                        id="demo-exp-title"
+                        value={model.title}
+                        onChange={(e) => setModel((m) => ({ ...m, title: e.target.value }))}
+                        placeholder="例如：蛋白纯化 · 缓冲液优化 · Run 03"
+                        className="w-full rounded-2xl border border-white/10 bg-black/40 px-4 py-3 text-sm text-slate-100 outline-none focus:border-indigo-400/45"
+                      />
+                    </label>
+                    <div className="grid grid-cols-2 gap-3">
+                      <label className="block">
+                        <div className="text-xs text-slate-400 mb-1">项目</div>
+                        <select
+                          value={model.project}
+                          onChange={(e) => setModel((m) => ({ ...m, project: e.target.value }))}
+                          className="w-full rounded-2xl border border-white/10 bg-black/40 px-4 py-3 text-sm text-slate-100 outline-none focus:border-indigo-400/45"
+                        >
+                          <option>Alpha</option>
+                          <option>Beta</option>
+                          <option>Gamma</option>
+                          <option>Delta</option>
+                        </select>
+                      </label>
+                      <label className="block">
+                        <div className="text-xs text-slate-400 mb-1">模板</div>
+                        <select
+                          value={model.template}
+                          onChange={(e) => setModel((m) => ({ ...m, template: e.target.value }))}
+                          className="w-full rounded-2xl border border-white/10 bg-black/40 px-4 py-3 text-sm text-slate-100 outline-none focus:border-indigo-400/45"
+                        >
+                          <option>标准实验记录</option>
+                          <option>材料表征</option>
+                          <option>生物实验</option>
+                          <option>化学合成</option>
+                        </select>
+                      </label>
+                    </div>
+                  </div>
+                </Card>
+
+                <Card title="实验内容" right="contenteditable 模拟富文本">
+                  <RichTextMock
+                    value={model.rich}
+                    onChange={(v) => setModel((m) => ({ ...m, rich: v }))}
+                  />
+                </Card>
+
+                <Card title="关联样品表（示例）" right="可扩展为 Spreadsheet">
+                  <DataTable
+                    rows={Array.from({ length: 12 }).map((_, i) => ({
+                      id: 2100 + i,
+                      title: `样品 ${String.fromCharCode(65 + (i % 6))}-${i + 1}`,
+                      project: model.project,
+                      owner: ["Lin", "Qian", "Wei", "Zhou"][i % 4],
+                      status: ["进行中", "已完成", "已归档"][i % 3],
+                      updatedAt: `2026-03-${String(26 - (i % 9)).padStart(2, "0")} ${
+                        9 + (i % 8)
+                      }:${String((i * 11) % 60).padStart(2, "0")}`,
+                      tags: [["批次A"], ["批次B"], ["对照"], ["温控"]][i % 4],
+                    }))}
+                  />
+                </Card>
+              </div>
+
+              <div className="col-span-12 xl:col-span-5 space-y-4">
+                <Card title="附件上传" right="拖拽区域 + 模拟进度">
+                  <Dropzone
+                    idForDemo="demo-upload-zone"
+                    files={model.files}
+                    setFiles={(filesOrFn) =>
+                      setModel((m) => ({
+                        ...m,
+                        files: typeof filesOrFn === "function" ? filesOrFn(m.files) : filesOrFn,
+                      }))
+                    }
+                    uploading={model.uploading}
+                    setUploading={(v) => setModel((m) => ({ ...m, uploading: v }))}
+                  />
+                </Card>
+                <MiniChart title="图表预览（上传后可进入分析）" />
+                <Card title="提交" right="提交操作">
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      className="rounded-2xl border border-indigo-400/25 bg-indigo-500/10 px-4 py-3 text-sm text-white hover:bg-indigo-500/15 hover:border-indigo-300/35 transition shadow-glow"
+                      onClick={() => {
+                        onSave?.(model);
+                        alert("已保存。");
+                      }}
+                    >
+                      保存实验记录
+                    </button>
+                    <button
+                      type="button"
+                      className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-slate-200 hover:bg-white/10 transition"
+                      onClick={() =>
+                        setModel((m) => ({ ...m, title: "", rich: "", files: [] }))
+                      }
+                    >
+                      重置
+                    </button>
+                  </div>
+                  <div className="mt-3 text-xs text-slate-500">
+                    提示：当前版本为前端单文件交付形态；数据保存在内存（刷新即消失）。如需持久化可接入后端 API。
+                  </div>
+                </Card>
+              </div>
+            </div>
+          </PageShell>
+        );
+      }
+
+      function PlaceholderPage({ title, subtitle, blocks = 3 }) {
+        const [query, setQuery] = useState("");
+        const [status, setStatus] = useState("全部");
+        const [draft, setDraft] = useState({
+          name: "",
+          owner: "Wei",
+          priority: "中",
+          note: "",
+        });
+
+        const rows = useMemo(() => {
+          const base = Array.from({ length: 18 }).map((_, i) => ({
+            id: 5000 + i,
+            title: `${title} · Item ${i + 1}`,
+            project: ["ALPHA", "BETA", "GAMMA", "DELTA"][i % 4],
+            owner: ["Wei", "Lin", "Qian", "Zhou"][i % 4],
+            status: ["进行中", "已完成", "已归档"][i % 3],
+            updatedAt: `2026-03-${String(26 - (i % 9)).padStart(2, "0")} ${10 + (i % 9)}:${String(
+              (i * 9) % 60
+            ).padStart(2, "0")}`,
+            tags: [["SOP"], ["审计"], ["模板"], ["通知"]][i % 4],
+          }));
+          const q = query.trim().toLowerCase();
+          const filtered = base.filter((r) => {
+            const hit = q
+              ? Object.values(r).some((v) => String(v).toLowerCase().includes(q))
+              : true;
+            const st = status === "全部" ? true : r.status === status;
+            return hit && st;
+          });
+          return filtered;
+        }, [title, query, status]);
+
+        const isLibrary = /文档资料库|SOP模板库/.test(title);
+        const isGovernance = /权限配置|操作日志/.test(title);
+        const isAccount = /登录|注册|账号安全|个人偏好/.test(title);
+
+        return (
+          <PageShell title={title} subtitle={subtitle} actions={<Badge tone="slate">VIEW</Badge>}>
+            <div className="grid grid-cols-12 gap-4">
+              <div className="col-span-12 xl:col-span-8 space-y-4">
+                <Card title="搜索与筛选" right="快速定位">
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                    <input
+                      value={query}
+                      onChange={(e) => setQuery(e.target.value)}
+                      placeholder="搜索任意字段…"
+                      className="w-full rounded-2xl border border-white/10 bg-black/40 px-4 py-3 text-sm text-slate-100 outline-none focus:border-indigo-400/45"
+                    />
+                    <select
+                      value={status}
+                      onChange={(e) => setStatus(e.target.value)}
+                      className="w-full rounded-2xl border border-white/10 bg-black/40 px-4 py-3 text-sm text-slate-100 outline-none focus:border-indigo-400/45"
+                    >
+                      <option>全部</option>
+                      <option>进行中</option>
+                      <option>已完成</option>
+                      <option>已归档</option>
+                    </select>
+                    <button
+                      type="button"
+                      className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-slate-200 hover:bg-white/10 transition"
+                      onClick={() => alert(`${title}：已执行批量操作（示例）。`)}
+                    >
+                      批量操作
+                    </button>
+                  </div>
+                </Card>
+
+                <Card title="数据视图" right="表格能力：排序 / 搜索 / 分页">
+                  <DataTable rows={rows} />
+                </Card>
+
+                {blocks > 2 ? (
+                  <Card title="流程面板" right="结构化">
+                    <div className="grid grid-cols-3 gap-3 text-xs text-slate-300">
+                      {[
+                        ["输入", "表单/模板/参数"],
+                        ["执行", "记录/附件/审阅"],
+                        ["输出", "分析/报告/归档"],
+                      ].map(([k, v]) => (
+                        <div key={k} className="rounded-2xl border border-white/10 bg-white/5 p-3">
+                          <div className="text-slate-100">{k}</div>
+                          <div className="mt-1 text-slate-400">{v}</div>
+                        </div>
+                      ))}
+                    </div>
+                  </Card>
+                ) : null}
+              </div>
+
+              <div className="col-span-12 xl:col-span-4 space-y-4">
+                <Card title="创建 / 设置" right={isGovernance ? "策略" : isLibrary ? "入库" : "表单"}>
+                  <div className="space-y-3">
+                    <label className="block">
+                      <div className="text-xs text-slate-400 mb-1">
+                        {isAccount ? "显示名称" : isLibrary ? "标题" : "名称"}
+                      </div>
+                      <input
+                        value={draft.name}
+                        onChange={(e) => setDraft((d) => ({ ...d, name: e.target.value }))}
+                        placeholder={isLibrary ? "例如：Protocol / Report / Template" : "例如：配置项 / 条目"}
+                        className="w-full rounded-2xl border border-white/10 bg-black/40 px-4 py-3 text-sm text-slate-100 outline-none focus:border-indigo-400/45"
+                      />
+                    </label>
+
+                    <div className="grid grid-cols-2 gap-3">
+                      <label className="block">
+                        <div className="text-xs text-slate-400 mb-1">{isGovernance ? "策略负责人" : "负责人"}</div>
+                        <select
+                          value={draft.owner}
+                          onChange={(e) => setDraft((d) => ({ ...d, owner: e.target.value }))}
+                          className="w-full rounded-2xl border border-white/10 bg-black/40 px-4 py-3 text-sm text-slate-100 outline-none focus:border-indigo-400/45"
+                        >
+                          <option>Wei</option>
+                          <option>Lin</option>
+                          <option>Qian</option>
+                          <option>Zhou</option>
+                        </select>
+                      </label>
+                      <label className="block">
+                        <div className="text-xs text-slate-400 mb-1">{isAccount ? "等级" : "优先级"}</div>
+                        <select
+                          value={draft.priority}
+                          onChange={(e) => setDraft((d) => ({ ...d, priority: e.target.value }))}
+                          className="w-full rounded-2xl border border-white/10 bg-black/40 px-4 py-3 text-sm text-slate-100 outline-none focus:border-indigo-400/45"
+                        >
+                          <option>低</option>
+                          <option>中</option>
+                          <option>高</option>
+                          <option>紧急</option>
+                        </select>
+                      </label>
+                    </div>
+
+                    <label className="block">
+                      <div className="text-xs text-slate-400 mb-1">{isLibrary ? "备注/摘要" : "说明"}</div>
+                      <textarea
+                        value={draft.note}
+                        onChange={(e) => setDraft((d) => ({ ...d, note: e.target.value }))}
+                        placeholder={
+                          isGovernance
+                            ? "写明策略目的、范围、边界与审计点…"
+                            : isLibrary
+                            ? "写明内容摘要、版本、来源与适用范围…"
+                            : "写明规则、流程与验收标准…"
+                        }
+                        className="w-full min-h-[110px] rounded-2xl border border-white/10 bg-black/40 px-4 py-3 text-sm text-slate-100 outline-none focus:border-indigo-400/45"
+                      ></textarea>
+                    </label>
+
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        className="rounded-2xl border border-indigo-400/25 bg-indigo-500/10 px-4 py-3 text-sm text-white hover:bg-indigo-500/15 hover:border-indigo-300/35 transition shadow-glow"
+                        onClick={() => {
+                          alert(`${title}：已提交（示例）。`);
+                          setDraft({ name: "", owner: "Wei", priority: "中", note: "" });
+                        }}
+                      >
+                        提交
+                      </button>
+                      <button
+                        type="button"
+                        className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-slate-200 hover:bg-white/10 transition"
+                        onClick={() => setDraft({ name: "", owner: "Wei", priority: "中", note: "" })}
+                      >
+                        清空
+                      </button>
+                    </div>
+                  </div>
+                </Card>
+
+                <Card title="附件" right="拖拽上传">
+                  <Dropzone
+                    files={[]}
+                    setFiles={() => {}}
+                    uploading={false}
+                    setUploading={() => {}}
+                    hint="支持把资料/图表/数据拖拽到这里进行归档或关联。"
+                  />
+                </Card>
+
+                <MiniChart title="趋势与指标" />
+              </div>
+            </div>
+          </PageShell>
+        );
+      }
+
+      function LandingView({ go }) {
+        return (
+          <PageShell
+            title="云研"
+            subtitle="电子实验记录本（ELN）SaaS：结构化记录、附件与指纹、权限与审计、数据分析与报告。"
+            actions={<Badge tone="emerald">OFFICIAL</Badge>}
+          >
+            <div className="grid grid-cols-12 gap-4">
+              <div className="col-span-12 xl:col-span-7 space-y-4">
+                <Card title="产品定位" right="极简 · 极客 · 高效">
+                  <div className="text-sm text-slate-200 leading-relaxed">
+                    面向研发团队的实验记录系统：把记录闭环做短，把审计追溯做强，把数据洞察做快。
+                  </div>
+                  <div className="mt-4 flex flex-wrap items-center gap-2">
+                    <Badge tone="indigo">ELN</Badge>
+                    <Badge tone="emerald">RBAC</Badge>
+                    <Badge tone="amber">Audit</Badge>
+                    <Badge tone="rose">Analytics</Badge>
+                  </div>
+                  <div className="mt-5 flex items-center gap-2">
+                    <button
+                      type="button"
+                      className="rounded-2xl border border-indigo-400/25 bg-indigo-500/10 px-4 py-3 text-sm text-white hover:bg-indigo-500/15 hover:border-indigo-300/35 transition shadow-glow"
+                      onClick={() => go("register")}
+                    >
+                      创建组织
+                    </button>
+                    <button
+                      type="button"
+                      className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-slate-200 hover:bg-white/10 transition"
+                      onClick={() => go("dashboard")}
+                    >
+                      进入控制台
+                    </button>
+                  </div>
+                </Card>
+
+                <Card title="能力矩阵" right="模块化交付">
+                  <div className="grid grid-cols-2 gap-3 text-xs text-slate-300">
+                    {[
+                      ["工作台", "看板、快捷动作、最近更新与指标"],
+                      ["实验记录", "富文本、附件、样品表、只读预览与签名"],
+                      ["项目", "项目边界、里程碑、关联资产与归档"],
+                      ["治理", "团队、RBAC、操作日志与合规导出"],
+                    ].map(([k, v]) => (
+                      <div key={k} className="rounded-2xl border border-white/10 bg-white/5 p-3">
+                        <div className="text-slate-100">{k}</div>
+                        <div className="mt-1 text-slate-400">{v}</div>
+                      </div>
+                    ))}
+                  </div>
+                </Card>
+              </div>
+              <div className="col-span-12 xl:col-span-5 space-y-4">
+                <MiniChart title="数据洞察（示意）" />
+                <Card title="交付说明" right="SaaS">
+                  <div className="text-xs text-slate-400 leading-relaxed">
+                    本版本为前端单文件交付形态，适用于客户评审与交互验收；可按模块拆分工程化并接入后端服务。
+                  </div>
+                </Card>
+              </div>
+            </div>
+          </PageShell>
+        );
+      }
+
+      function LoginView({ go }) {
+        const [form, setForm] = useState({ email: "", password: "" });
+        return (
+          <PageShell title="登录" subtitle="组织级访问控制入口。" actions={<Badge tone="indigo">AUTH</Badge>}>
+            <div className="grid grid-cols-12 gap-4">
+              <div className="col-span-12 xl:col-span-7 space-y-4">
+                <Card title="账号登录" right="支持 SSO / 2FA 扩展">
+                  <div className="space-y-3">
+                    <label className="block">
+                      <div className="text-xs text-slate-400 mb-1">邮箱</div>
+                      <input
+                        value={form.email}
+                        onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))}
+                        className="w-full rounded-2xl border border-white/10 bg-black/40 px-4 py-3 text-sm text-slate-100 outline-none focus:border-indigo-400/45"
+                        placeholder="name@lab.com"
+                        autoComplete="email"
+                      />
+                    </label>
+                    <label className="block">
+                      <div className="text-xs text-slate-400 mb-1">密码</div>
+                      <input
+                        value={form.password}
+                        onChange={(e) => setForm((f) => ({ ...f, password: e.target.value }))}
+                        className="w-full rounded-2xl border border-white/10 bg-black/40 px-4 py-3 text-sm text-slate-100 outline-none focus:border-indigo-400/45"
+                        placeholder="••••••••"
+                        type="password"
+                        autoComplete="current-password"
+                      />
+                    </label>
+                    <div className="flex items-center gap-2 pt-1">
+                      <button
+                        type="button"
+                        className="rounded-2xl border border-indigo-400/25 bg-indigo-500/10 px-4 py-3 text-sm text-white hover:bg-indigo-500/15 hover:border-indigo-300/35 transition shadow-glow"
+                        onClick={() => go("dashboard")}
+                      >
+                        登录
+                      </button>
+                      <button
+                        type="button"
+                        className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-slate-200 hover:bg-white/10 transition"
+                        onClick={() => go("register")}
+                      >
+                        创建账号
+                      </button>
+                      <button
+                        type="button"
+                        className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-slate-200 hover:bg-white/10 transition"
+                        onClick={() => alert("请联系管理员或通过邮箱重置密码。")}
+                      >
+                        忘记密码
+                      </button>
+                    </div>
+                  </div>
+                </Card>
+              </div>
+              <div className="col-span-12 xl:col-span-5 space-y-4">
+                <Card title="安全说明" right="默认开启审计">
+                  <div className="space-y-2 text-xs text-slate-400">
+                    <div className="rounded-xl border border-white/10 bg-white/5 px-3 py-2">
+                      关键操作（导出、权限变更、删除）建议二次确认并写入审计日志。
+                    </div>
+                    <div className="rounded-xl border border-white/10 bg-white/5 px-3 py-2">
+                      可配置强密码策略、2FA、设备与会话管理。
+                    </div>
+                  </div>
+                </Card>
+                <MiniChart title="登录后可访问的分析能力（示意）" />
+              </div>
+            </div>
+          </PageShell>
+        );
+      }
+
+      function RegisterView({ go }) {
+        const [form, setForm] = useState({ org: "", name: "", email: "", password: "" });
+        return (
+          <PageShell title="注册" subtitle="创建组织并初始化管理员账号。" actions={<Badge tone="emerald">SIGN UP</Badge>}>
+            <div className="grid grid-cols-12 gap-4">
+              <div className="col-span-12 xl:col-span-7 space-y-4">
+                <Card title="组织与管理员" right="初始化">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    <label className="block">
+                      <div className="text-xs text-slate-400 mb-1">组织名称</div>
+                      <input
+                        value={form.org}
+                        onChange={(e) => setForm((f) => ({ ...f, org: e.target.value }))}
+                        className="w-full rounded-2xl border border-white/10 bg-black/40 px-4 py-3 text-sm text-slate-100 outline-none focus:border-indigo-400/45"
+                        placeholder="例如：Yunyan Labs"
+                      />
+                    </label>
+                    <label className="block">
+                      <div className="text-xs text-slate-400 mb-1">管理员姓名</div>
+                      <input
+                        value={form.name}
+                        onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
+                        className="w-full rounded-2xl border border-white/10 bg-black/40 px-4 py-3 text-sm text-slate-100 outline-none focus:border-indigo-400/45"
+                        placeholder="你的姓名"
+                      />
+                    </label>
+                    <label className="block">
+                      <div className="text-xs text-slate-400 mb-1">邮箱</div>
+                      <input
+                        value={form.email}
+                        onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))}
+                        className="w-full rounded-2xl border border-white/10 bg-black/40 px-4 py-3 text-sm text-slate-100 outline-none focus:border-indigo-400/45"
+                        placeholder="name@lab.com"
+                      />
+                    </label>
+                    <label className="block">
+                      <div className="text-xs text-slate-400 mb-1">密码</div>
+                      <input
+                        value={form.password}
+                        onChange={(e) => setForm((f) => ({ ...f, password: e.target.value }))}
+                        className="w-full rounded-2xl border border-white/10 bg-black/40 px-4 py-3 text-sm text-slate-100 outline-none focus:border-indigo-400/45"
+                        placeholder="建议 ≥12 位"
+                        type="password"
+                      />
+                    </label>
+                  </div>
+                  <div className="mt-4 flex items-center gap-2">
+                    <button
+                      type="button"
+                      className="rounded-2xl border border-indigo-400/25 bg-indigo-500/10 px-4 py-3 text-sm text-white hover:bg-indigo-500/15 hover:border-indigo-300/35 transition shadow-glow"
+                      onClick={() => go("dashboard")}
+                    >
+                      创建并进入控制台
+                    </button>
+                    <button
+                      type="button"
+                      className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-slate-200 hover:bg-white/10 transition"
+                      onClick={() => go("login")}
+                    >
+                      已有账号
+                    </button>
+                  </div>
+                </Card>
+              </div>
+              <div className="col-span-12 xl:col-span-5 space-y-4">
+                <Card title="默认开启" right="合规基础">
+                  <div className="grid grid-cols-2 gap-3 text-xs text-slate-300">
+                    {[
+                      ["操作日志", "关键事件记录与导出"],
+                      ["权限矩阵", "角色与资源策略"],
+                      ["版本追踪", "正文与附件变更"],
+                      ["数据隔离", "组织级隔离"],
+                    ].map(([k, v]) => (
+                      <div key={k} className="rounded-2xl border border-white/10 bg-white/5 p-3">
+                        <div className="text-slate-100">{k}</div>
+                        <div className="mt-1 text-slate-400">{v}</div>
+                      </div>
+                    ))}
+                  </div>
+                </Card>
+                <MiniChart title="组织创建后的指标（示意）" />
+              </div>
+            </div>
+          </PageShell>
+        );
+      }
+
+      function ProjectsView({ go, projects, setAppData, appendLog }) {
+        return (
+          <PageShell title="项目管理" subtitle="项目是实验、资料、SOP、权限与审计的聚合边界。" actions={<Badge tone="indigo">PROJECT</Badge>}>
+            <div className="grid grid-cols-12 gap-4">
+              <div className="col-span-12 xl:col-span-8 space-y-4">
+                <Card title="项目列表" right="进入详情">
+                  <div className="space-y-2">
+                    {projects.map((p) => (
+                      <button
+                        key={p.id}
+                        type="button"
+                        className="w-full text-left rounded-2xl border border-white/10 bg-white/5 hover:bg-white/8 transition px-4 py-3"
+                        onClick={() => {
+                          setAppData((d) => ({ ...d, activeProjectId: p.id }));
+                          appendLog("OPEN_PROJECT", `Project#${p.id}`);
+                          go("projectDetail");
+                        }}
+                      >
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="min-w-0">
+                            <div className="text-sm text-white truncate">{p.name}</div>
+                            <div className="mt-1 text-xs text-slate-500">
+                              项目代号：{p.id} · 负责人：{p.owner} · 更新：{p.updatedAt}
+                            </div>
+                          </div>
+                          <span className="text-[10px] rounded-full border border-white/10 bg-black/20 px-2 py-1 text-slate-300">
+                            {p.stage}
+                          </span>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                </Card>
+              </div>
+              <div className="col-span-12 xl:col-span-4 space-y-4">
+                <Card title="新建项目" right="表单">
+                  <div className="space-y-3">
+                    <div className="text-xs text-slate-400">可配置：项目说明、阶段、默认 SOP、成员与权限。</div>
+                    <button
+                      type="button"
+                      className="rounded-2xl border border-indigo-400/25 bg-indigo-500/10 px-4 py-3 text-sm text-white hover:bg-indigo-500/15 hover:border-indigo-300/35 transition shadow-glow"
+                      onClick={() => {
+                        const id = "P" + String(Date.now()).slice(-5);
+                        setAppData((d) => ({
+                          ...d,
+                          projects: [
+                            {
+                              id,
+                              name: `新项目 ${id}`,
+                              owner: "Wei",
+                              stage: "进行中",
+                              updatedAt: "刚刚",
+                            },
+                            ...d.projects,
+                          ],
+                        }));
+                        appendLog("CREATE", `Project#${id}`);
+                      }}
+                    >
+                      创建项目
+                    </button>
+                  </div>
+                </Card>
+                <MiniChart title="项目维度趋势（示意）" />
+              </div>
+            </div>
+          </PageShell>
+        );
+      }
+
+      function ProjectDetailView({ go, activeProjectId, records }) {
+        const code = activeProjectId || "ALPHA";
+        const milestones = [
+          { name: "方案对照跑通", date: "2026-03-18", status: "完成" },
+          { name: "重复性验证", date: "2026-03-28", status: "进行中" },
+          { name: "报告与归档", date: "2026-04-02", status: "待开始" },
+        ];
+        return (
+          <PageShell title="项目详情" subtitle={`项目代号：${code} · 里程碑、资产与实验聚合视图。`} actions={<Badge tone="indigo">DETAIL</Badge>}>
+            <div className="grid grid-cols-12 gap-4">
+              <div className="col-span-12 xl:col-span-8 space-y-4">
+                <Card title="里程碑" right="项目推进">
+                  <div className="space-y-2 text-xs">
+                    {milestones.map((m) => (
+                      <div key={m.name} className="flex items-center justify-between rounded-xl border border-white/10 bg-white/5 px-3 py-2">
+                        <div className="text-slate-200">{m.name}</div>
+                        <div className="flex items-center gap-2">
+                          <div className="text-[11px] text-slate-500">{m.date}</div>
+                          <span className="text-[10px] rounded-full border border-white/10 bg-black/20 px-2 py-1 text-slate-300">
+                            {m.status}
+                          </span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </Card>
+                <Card title="关联实验" right="最近更新">
+                  <DataTable
+                    rows={records
+                      .filter((r) => r.project === code)
+                      .map((r) => ({ ...r, tags: r.tags || ["记录"] }))}
+                  />
+                </Card>
+              </div>
+              <div className="col-span-12 xl:col-span-4 space-y-4">
+                <MiniChart title={`项目 ${code} 指标（示意）`} />
+                <Card title="操作" right="导航">
+                  <div className="grid grid-cols-2 gap-2">
+                    <button type="button" className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-slate-200 hover:bg-white/10 transition" onClick={() => go("records")}>记录列表</button>
+                    <button type="button" className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-slate-200 hover:bg-white/10 transition" onClick={() => go("docs")}>资料库</button>
+                    <button type="button" className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-slate-200 hover:bg-white/10 transition" onClick={() => go("sop")}>SOP</button>
+                    <button type="button" className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-slate-200 hover:bg-white/10 transition" onClick={() => go("analytics")}>分析</button>
+                  </div>
+                </Card>
+              </div>
+            </div>
+          </PageShell>
+        );
+      }
+
+      function RecordsView({ go, rows, setAppData, appendLog }) {
+        return (
+          <PageShell title="实验记录列表" subtitle="索引、筛选、批量操作与归档。" actions={<Badge tone="indigo">RECORDS</Badge>}>
+            <div className="grid grid-cols-12 gap-4">
+              <div className="col-span-12 xl:col-span-9 space-y-4">
+                <Card title="记录索引" right="点击进入只读预览">
+                  <div className="rounded-2xl border border-white/10 bg-black/20 overflow-auto">
+                    <table className="min-w-[900px] w-full text-left">
+                      <thead className="bg-slate-950/50">
+                        <tr className="text-xs text-slate-400">
+                          <th className="px-3 py-3">标题</th>
+                          <th className="px-3 py-3">项目</th>
+                          <th className="px-3 py-3">负责人</th>
+                          <th className="px-3 py-3">状态</th>
+                          <th className="px-3 py-3">更新时间</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {rows.map((r) => (
+                          <tr
+                            key={r.id}
+                            className="border-t border-white/10 text-xs text-slate-200 hover:bg-white/5 cursor-pointer"
+                            onClick={() => {
+                              setAppData((d) => ({ ...d, activeRecordId: String(r.id) }));
+                              appendLog("OPEN_RECORD", `Record#${r.id}`);
+                              go("recordReadonly");
+                            }}
+                          >
+                            <td className="px-3 py-3">
+                              <div className="font-medium text-slate-100">{r.title}</div>
+                              <div className="text-[11px] text-slate-500">#{r.id}</div>
+                            </td>
+                            <td className="px-3 py-3 text-slate-300">{r.project}</td>
+                            <td className="px-3 py-3 text-slate-300">{r.owner}</td>
+                            <td className="px-3 py-3 text-slate-300">{r.status}</td>
+                            <td className="px-3 py-3 text-slate-400">{r.updatedAt}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </Card>
+              </div>
+              <div className="col-span-12 xl:col-span-3 space-y-4">
+                <Card title="批量操作" right="治理">
+                  <div className="space-y-2">
+                    {["批量归档", "批量导出", "批量分配负责人", "批量打标签"].map((x) => (
+                      <button
+                        key={x}
+                        type="button"
+                        className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-slate-200 hover:bg-white/10 transition"
+                        onClick={() => alert(`${x}：已执行（示例）。`)}
+                      >
+                        {x}
+                      </button>
+                    ))}
+                  </div>
+                </Card>
+                <MiniChart title="记录更新趋势（示意）" />
+              </div>
+            </div>
+          </PageShell>
+        );
+      }
+
+      function RecordReadonlyView({ go, id, appendLog }) {
+        return (
+          <PageShell title="实验只读预览" subtitle={`记录 #${id} · 审阅、签名与导出。`} actions={<Badge tone="slate">READONLY</Badge>}>
+            <div className="grid grid-cols-12 gap-4">
+              <div className="col-span-12 xl:col-span-8 space-y-4">
+                <Card title="实验正文" right="只读">
+                  <div className="rounded-2xl border border-white/10 bg-black/20 p-4 text-sm leading-relaxed text-slate-100">
+                    <div className="text-xs text-slate-400">目的</div>
+                    <div className="mt-2 text-slate-300">
+                      对照不同缓冲体系在温控与流速条件下对目标蛋白稳定性与峰形的影响，验证重复性并形成结论。
+                    </div>
+                    <div className="mt-4 text-xs text-slate-400">步骤</div>
+                    <ol className="mt-2 list-decimal pl-5 text-slate-300 space-y-1">
+                      <li>按 SOP 执行样品准备与上样。</li>
+                      <li>采集 raw 数据并生成图表预览。</li>
+                      <li>对照组 A/B/C 记录关键参数与观察结果。</li>
+                      <li>整理结论并提交审阅。</li>
+                    </ol>
+                    <div className="mt-4 text-xs text-slate-400">结论</div>
+                    <div className="mt-2 text-slate-300">
+                      B 体系表现最佳，建议作为后续批次默认配置，并进入下一轮温控敏感性验证。
+                    </div>
+                  </div>
+                </Card>
+                <Card title="附件与指纹" right="追溯">
+                  <div className="grid grid-cols-2 gap-3 text-xs">
+                    {[
+                      ["chart_run03.png", "图表", "SHA256: 9f…c2"],
+                      ["raw_signal_run03.csv", "原始数据", "SHA256: 41…8a"],
+                      ["sop_pur_001.pdf", "SOP", "SHA256: a0…19"],
+                      ["qc_report.txt", "报告", "SHA256: 7b…e1"],
+                    ].map(([n, t, h]) => (
+                      <div key={n} className="rounded-2xl border border-white/10 bg-white/5 p-3">
+                        <div className="text-slate-100">{n}</div>
+                        <div className="mt-1 text-[11px] text-slate-500">{t}</div>
+                        <div className="mt-2 text-[11px] text-slate-400">{h}</div>
+                      </div>
+                    ))}
+                  </div>
+                </Card>
+              </div>
+              <div className="col-span-12 xl:col-span-4 space-y-4">
+                <Card title="审阅与签名" right="流程">
+                  <div className="space-y-2 text-xs">
+                    {[
+                      ["起草", "Wei", "2026-03-22 10:12"],
+                      ["审阅", "Lin", "2026-03-22 18:40"],
+                      ["批准", "Qian", "待处理"],
+                    ].map(([s, who, when]) => (
+                      <div key={s} className="rounded-xl border border-white/10 bg-white/5 px-3 py-2">
+                        <div className="flex items-center justify-between">
+                          <div className="text-slate-100">{s}</div>
+                          <div className="text-[11px] text-slate-500">{when}</div>
+                        </div>
+                        <div className="mt-1 text-[11px] text-slate-400">负责人：{who}</div>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="mt-3 grid grid-cols-2 gap-2">
+                    <button type="button" className="rounded-2xl border border-indigo-400/25 bg-indigo-500/10 px-4 py-3 text-sm text-white hover:bg-indigo-500/15 hover:border-indigo-300/35 transition shadow-glow" onClick={() => { appendLog("APPROVE_REQUEST", `Record#${id}`); alert("已提交审批。"); }}>
+                      提交审批
+                    </button>
+                    <button type="button" className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-slate-200 hover:bg-white/10 transition" onClick={() => { appendLog("EXPORT", `Record#${id}.pdf`); alert("已导出 PDF。"); }}>
+                      导出 PDF
+                    </button>
+                  </div>
+                </Card>
+                <MiniChart title="记录曲线（示意）" />
+                <button type="button" className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-slate-200 hover:bg-white/10 transition" onClick={() => go("records")}>
+                  返回列表
+                </button>
+              </div>
+            </div>
+          </PageShell>
+        );
+      }
+
+      function AnalyticsView() {
+        const [view, setView] = useState("趋势");
+        const [metric, setMetric] = useState("峰值");
+        return (
+          <PageShell title="数据图表分析" subtitle="对上传数据进行筛选、对照与异常定位，并生成报告。" actions={<Badge tone="emerald">ANALYTICS</Badge>}>
+            <div className="grid grid-cols-12 gap-4">
+              <div className="col-span-12 xl:col-span-8 space-y-4">
+                <Card title="分析器" right="筛选">
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                    <select
+                      value={view}
+                      onChange={(e) => setView(e.target.value)}
+                      className="w-full rounded-2xl border border-white/10 bg-black/40 px-4 py-3 text-sm text-slate-100 outline-none focus:border-indigo-400/45"
+                    >
+                      <option>趋势</option>
+                      <option>对照组</option>
+                      <option>异常点</option>
+                      <option>批次对比</option>
+                    </select>
+                    <select
+                      value={metric}
+                      onChange={(e) => setMetric(e.target.value)}
+                      className="w-full rounded-2xl border border-white/10 bg-black/40 px-4 py-3 text-sm text-slate-100 outline-none focus:border-indigo-400/45"
+                    >
+                      <option>峰值</option>
+                      <option>均值</option>
+                      <option>斜率</option>
+                      <option>方差</option>
+                    </select>
+                    <select className="w-full rounded-2xl border border-white/10 bg-black/40 px-4 py-3 text-sm text-slate-100 outline-none focus:border-indigo-400/45">
+                      <option>最近 7 天</option>
+                      <option>最近 30 天</option>
+                      <option>本季度</option>
+                      <option>自定义</option>
+                    </select>
+                  </div>
+                </Card>
+                <MiniChart title={`${view} · ${metric}`} />
+                <Card title="洞察与动作" right="报告">
+                  <div className="grid grid-cols-3 gap-3">
+                    {[
+                      ["主要趋势", "缓慢上升，波动减小"],
+                      ["异常点", "2 个点偏离 2σ"],
+                      ["建议", "检查温控与流速设定"],
+                    ].map(([k, v]) => (
+                      <div key={k} className="rounded-2xl border border-white/10 bg-white/5 p-3">
+                        <div className="text-[10px] text-slate-500">{k}</div>
+                        <div className="mt-2 text-sm text-slate-100">{v}</div>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="mt-4 flex items-center gap-2">
+                    <button type="button" className="rounded-2xl border border-indigo-400/25 bg-indigo-500/10 px-4 py-3 text-sm text-white hover:bg-indigo-500/15 hover:border-indigo-300/35 transition shadow-glow" onClick={() => alert("已生成分析报告（示例）。")}>
+                      生成报告
+                    </button>
+                    <button type="button" className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-slate-200 hover:bg-white/10 transition" onClick={() => alert("已导出数据（示例）。")}>
+                      导出数据
+                    </button>
+                  </div>
+                </Card>
+              </div>
+              <div className="col-span-12 xl:col-span-4 space-y-4">
+                <Card title="数据源" right="追溯">
+                  <div className="space-y-2 text-xs text-slate-300">
+                    {[
+                      ["raw_signal_run03.csv", "已解析 18 点"],
+                      ["chart_run03.png", "已生成预览"],
+                      ["参数", "流速 1.2 / 温度 4°C"],
+                    ].map(([k, v]) => (
+                      <div key={k} className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 flex items-center justify-between">
+                        <span className="text-slate-100">{k}</span>
+                        <span className="text-[11px] text-slate-500">{v}</span>
+                      </div>
+                    ))}
+                  </div>
+                </Card>
+                <Card title="异常点列表" right="可定位">
+                  <div className="space-y-2 text-xs text-slate-300">
+                    {["Point#07 · 偏高", "Point#12 · 偏低"].map((x) => (
+                      <button key={x} type="button" className="w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2 hover:bg-white/8 transition text-left" onClick={() => alert("已定位到曲线点位（示例）。")}>
+                        {x}
+                      </button>
+                    ))}
+                  </div>
+                </Card>
+              </div>
+            </div>
+          </PageShell>
+        );
+      }
+
+      // 其余页面（文档/SOP/团队/RBAC/审计/通知/偏好/安全/存储/工单）使用各自专用视图，保持信息结构差异
+      function DocsView({ docs, setAppData, appendLog }) {
+        const [q, setQ] = useState("");
+        const filtered = docs.filter((d) =>
+          q.trim()
+            ? `${d.title} ${d.type} ${d.project}`.toLowerCase().includes(q.trim().toLowerCase())
+            : true
+        );
+        return (
+          <PageShell title="文档资料库" subtitle="资料归档、检索与版本管理。" actions={<Badge tone="indigo">DOCS</Badge>}>
+            <div className="grid grid-cols-12 gap-4">
+              <div className="col-span-12 xl:col-span-8 space-y-4">
+                <Card title="检索" right="过滤">
+                  <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="搜索：标题 / 类型 / 项目…" className="w-full rounded-2xl border border-white/10 bg-black/40 px-4 py-3 text-sm text-slate-100 outline-none focus:border-indigo-400/45" />
+                </Card>
+                <Card title="资料列表" right={`${filtered.length} 条`}>
+                  <div className="space-y-2">
+                    {filtered.map((d) => (
+                      <div key={d.id} className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3">
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="min-w-0">
+                            <div className="text-sm text-white truncate">{d.title}</div>
+                            <div className="mt-1 text-xs text-slate-500">
+                              {d.type} · 项目 {d.project} · 更新 {d.updatedAt}
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <button type="button" className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs text-slate-200 hover:bg-white/10 transition" onClick={() => appendLog("PREVIEW", `Doc#${d.id}`)}>预览</button>
+                            <button type="button" className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs text-slate-200 hover:bg-white/10 transition" onClick={() => appendLog("DOWNLOAD", `Doc#${d.id}`)}>下载</button>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </Card>
+              </div>
+              <div className="col-span-12 xl:col-span-4 space-y-4">
+                <Card title="入库" right="上传">
+                  <Dropzone files={[]} setFiles={() => {}} uploading={false} setUploading={() => {}} hint="拖拽或选择文件入库，并关联项目/标签。" />
+                  <div className="mt-3 flex items-center gap-2">
+                    <button type="button" className="rounded-2xl border border-indigo-400/25 bg-indigo-500/10 px-4 py-3 text-sm text-white hover:bg-indigo-500/15 hover:border-indigo-300/35 transition shadow-glow" onClick={() => {
+                      const id = "d" + String(Date.now()).slice(-5);
+                      setAppData((d) => ({
+                        ...d,
+                        docs: [{ id, title: `新资料 ${id}`, type: "报告", project: "ALPHA", updatedAt: "刚刚" }, ...d.docs],
+                      }));
+                      appendLog("CREATE", `Doc#${id}`);
+                    }}>入库</button>
+                    <button type="button" className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-slate-200 hover:bg-white/10 transition" onClick={() => appendLog("COPY_LINK", "DocRef")}>生成引用</button>
+                  </div>
+                </Card>
+                <MiniChart title="资料访问趋势（示意）" />
+              </div>
+            </div>
+          </PageShell>
+        );
+      }
+
+      function SopView({ sops, setAppData, appendLog }) {
+        return (
+          <PageShell title="SOP模板库" subtitle="模板化 SOP、可复制实验步骤与检查项。" actions={<Badge tone="indigo">SOP</Badge>}>
+            <div className="grid grid-cols-12 gap-4">
+              <div className="col-span-12 xl:col-span-8 space-y-4">
+                <Card title="模板列表" right="版本化">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    {sops.map((s) => (
+                      <div key={s.id} className="rounded-2xl border border-white/10 bg-white/5 p-3">
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="min-w-0">
+                            <div className="text-sm text-white truncate">{s.name}</div>
+                            <div className="mt-1 text-xs text-slate-500">
+                              版本 {s.version} · 维护人 {s.owner}
+                            </div>
+                          </div>
+                          <span className="text-[10px] rounded-full border border-white/10 bg-black/20 px-2 py-1 text-slate-300">
+                            {s.scope}
+                          </span>
+                        </div>
+                        <div className="mt-3 flex items-center gap-2">
+                          <button type="button" className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs text-slate-200 hover:bg-white/10 transition" onClick={() => appendLog("OPEN_SOP", `SOP#${s.id}`)}>打开</button>
+                          <button type="button" className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs text-slate-200 hover:bg-white/10 transition" onClick={() => appendLog("APPLY_SOP", `SOP#${s.id}`)}>应用</button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </Card>
+              </div>
+              <div className="col-span-12 xl:col-span-4 space-y-4">
+                <Card title="新建模板" right="固化流程">
+                  <div className="text-xs text-slate-400">
+                    模板建议包含：准备/执行/记录/质控/归档，并固化关键参数范围与检查项。
+                  </div>
+                  <div className="mt-3">
+                    <button type="button" className="rounded-2xl border border-indigo-400/25 bg-indigo-500/10 px-4 py-3 text-sm text-white hover:bg-indigo-500/15 hover:border-indigo-300/35 transition shadow-glow" onClick={() => {
+                      const id = "s" + String(Date.now()).slice(-5);
+                      setAppData((d) => ({
+                        ...d,
+                        sops: [{ id, name: `SOP-${id}`, version: "1.0", owner: "Wei", scope: "通用" }, ...d.sops],
+                      }));
+                      appendLog("CREATE", `SOP#${id}`);
+                    }}>
+                      创建模板
+                    </button>
+                  </div>
+                </Card>
+                <MiniChart title="模板使用趋势（示意）" />
+              </div>
+            </div>
+          </PageShell>
+        );
+      }
+
+      function TeamView({ members, setAppData, appendLog }) {
+        const [invite, setInvite] = useState({ name: "", email: "", role: "Member" });
+        return (
+          <PageShell title="团队成员管理" subtitle="邀请成员、分组与状态管理。" actions={<Badge tone="indigo">TEAM</Badge>}>
+            <div className="grid grid-cols-12 gap-4">
+              <div className="col-span-12 xl:col-span-8 space-y-4">
+                <Card title="成员列表" right={`${members.length} 人`}>
+                  <div className="rounded-2xl border border-white/10 bg-black/20 overflow-auto">
+                    <table className="min-w-[820px] w-full text-left">
+                      <thead className="bg-slate-950/50">
+                        <tr className="text-xs text-slate-400">
+                          <th className="px-3 py-3">成员</th>
+                          <th className="px-3 py-3">邮箱</th>
+                          <th className="px-3 py-3">角色</th>
+                          <th className="px-3 py-3">状态</th>
+                          <th className="px-3 py-3">操作</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {members.map((m) => (
+                          <tr key={m.id} className="border-t border-white/10 text-xs text-slate-200 hover:bg-white/5">
+                            <td className="px-3 py-3">
+                              <div className="text-slate-100 font-medium">{m.name}</div>
+                              <div className="text-[11px] text-slate-500">#{m.id}</div>
+                            </td>
+                            <td className="px-3 py-3 text-slate-300">{m.email}</td>
+                            <td className="px-3 py-3 text-slate-300">{m.role}</td>
+                            <td className="px-3 py-3 text-slate-300">{m.status}</td>
+                            <td className="px-3 py-3">
+                              <div className="flex items-center gap-2">
+                                <button type="button" className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs text-slate-200 hover:bg-white/10 transition" onClick={() => appendLog("REINVITE", `Member#${m.id}`)}>重邀</button>
+                                <button type="button" className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs text-slate-200 hover:bg-white/10 transition" onClick={() => {
+                                  setAppData((d) => ({ ...d, members: d.members.filter((x) => x.id !== m.id) }));
+                                  appendLog("REMOVE_MEMBER", `Member#${m.id}`);
+                                }}>移除</button>
+                              </div>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </Card>
+              </div>
+              <div className="col-span-12 xl:col-span-4 space-y-4">
+                <Card title="邀请成员" right="组织内">
+                  <div className="space-y-3">
+                    <input value={invite.name} onChange={(e) => setInvite((v) => ({ ...v, name: e.target.value }))} placeholder="姓名" className="w-full rounded-2xl border border-white/10 bg-black/40 px-4 py-3 text-sm text-slate-100 outline-none focus:border-indigo-400/45" />
+                    <input value={invite.email} onChange={(e) => setInvite((v) => ({ ...v, email: e.target.value }))} placeholder="邮箱" className="w-full rounded-2xl border border-white/10 bg-black/40 px-4 py-3 text-sm text-slate-100 outline-none focus:border-indigo-400/45" />
+                    <select value={invite.role} onChange={(e) => setInvite((v) => ({ ...v, role: e.target.value }))} className="w-full rounded-2xl border border-white/10 bg-black/40 px-4 py-3 text-sm text-slate-100 outline-none focus:border-indigo-400/45">
+                      <option>Owner</option>
+                      <option>Admin</option>
+                      <option>Member</option>
+                      <option>Viewer</option>
+                    </select>
+                    <button
+                      type="button"
+                      className="w-full rounded-2xl border border-indigo-400/25 bg-indigo-500/10 px-4 py-3 text-sm text-white hover:bg-indigo-500/15 hover:border-indigo-300/35 transition shadow-glow"
+                      onClick={() => {
+                        const id = String(Date.now()).slice(-6);
+                        setAppData((d) => ({
+                          ...d,
+                          members: [{ id, name: invite.name || "New Member", email: invite.email || "new@lab.com", role: invite.role, status: "Invited" }, ...d.members],
+                        }));
+                        appendLog("INVITE_MEMBER", `Member#${id}`);
+                        setInvite({ name: "", email: "", role: "Member" });
+                      }}
+                    >
+                      发送邀请
+                    </button>
+                  </div>
+                </Card>
+                <MiniChart title="成员活跃度（示意）" />
+              </div>
+            </div>
+          </PageShell>
+        );
+      }
+
+      function RbacView() {
+        const resources = ["实验记录", "文档资料库", "SOP模板库", "团队", "权限配置", "审计日志"];
+        const roles = ["Owner", "Admin", "Member", "Viewer"];
+        const [matrix, setMatrix] = useState(() => {
+          const m = {};
+          for (const r of roles) for (const res of resources) for (const p of ["read", "write", "approve", "admin"]) m[`${r}:${res}:${p}`] = r === "Owner" ? true : p === "read";
+          return m;
+        });
+        const toggle = (r, res, p) => setMatrix((m) => ({ ...m, [`${r}:${res}:${p}`]: !m[`${r}:${res}:${p}`] }));
+        return (
+          <PageShell title="权限配置" subtitle="RBAC 权限矩阵：角色 × 资源 × 动作。" actions={<Badge tone="indigo">RBAC</Badge>}>
+            <Card title="权限矩阵" right="点击切换">
+              <div className="rounded-2xl border border-white/10 bg-black/20 overflow-auto">
+                <table className="min-w-[980px] w-full text-left">
+                  <thead className="bg-slate-950/50">
+                    <tr className="text-xs text-slate-400">
+                      <th className="px-3 py-3">资源</th>
+                      {roles.map((r) => (
+                        <th key={r} className="px-3 py-3">{r}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {resources.map((res) => (
+                      <tr key={res} className="border-t border-white/10 text-xs text-slate-200">
+                        <td className="px-3 py-3 text-slate-100 font-medium">{res}</td>
+                        {roles.map((r) => (
+                          <td key={r} className="px-3 py-3">
+                            <div className="flex flex-wrap gap-1">
+                              {["read", "write", "approve", "admin"].map((p) => (
+                                <button
+                                  key={p}
+                                  type="button"
+                                  onClick={() => toggle(r, res, p)}
+                                  className={cx(
+                                    "rounded-full border px-2 py-1 text-[10px] transition",
+                                    matrix[`${r}:${res}:${p}`]
+                                      ? "border-emerald-400/20 bg-emerald-500/10 text-emerald-200"
+                                      : "border-white/10 bg-white/5 text-slate-400 hover:bg-white/10"
+                                  )}
+                                >
+                                  {p.toUpperCase()}
+                                </button>
+                              ))}
+                            </div>
+                          </td>
+                        ))}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </Card>
+          </PageShell>
+        );
+      }
+
+      function AuditView({ logs }) {
+        const [q, setQ] = useState("");
+        const filtered = logs.filter((l) => (q.trim() ? `${l.time} ${l.actor} ${l.action} ${l.target} ${l.result}`.toLowerCase().includes(q.trim().toLowerCase()) : true));
+        return (
+          <PageShell title="操作日志" subtitle="审计追踪与合规审阅。" actions={<Badge tone="indigo">AUDIT</Badge>}>
+            <div className="grid grid-cols-12 gap-4">
+              <div className="col-span-12 xl:col-span-9 space-y-4">
+                <Card title="检索" right="审计">
+                  <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="搜索：操作者 / 动作 / 对象 / 时间…" className="w-full rounded-2xl border border-white/10 bg-black/40 px-4 py-3 text-sm text-slate-100 outline-none focus:border-indigo-400/45" />
+                </Card>
+                <Card title="日志流" right={`${filtered.length} 条`}>
+                  <div className="rounded-2xl border border-white/10 bg-black/20 overflow-auto">
+                    <table className="min-w-[980px] w-full text-left">
+                      <thead className="bg-slate-950/50">
+                        <tr className="text-xs text-slate-400">
+                          <th className="px-3 py-3">时间</th>
+                          <th className="px-3 py-3">操作者</th>
+                          <th className="px-3 py-3">动作</th>
+                          <th className="px-3 py-3">对象</th>
+                          <th className="px-3 py-3">结果</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {filtered.map((l) => (
+                          <tr key={l.id} className="border-t border-white/10 text-xs text-slate-200 hover:bg-white/5">
+                            <td className="px-3 py-3 text-slate-400">{l.time}</td>
+                            <td className="px-3 py-3 text-slate-300">{l.actor}</td>
+                            <td className="px-3 py-3 text-slate-300">{l.action}</td>
+                            <td className="px-3 py-3 text-slate-300">{l.target}</td>
+                            <td className="px-3 py-3">
+                              <span className={cx("text-[10px] rounded-full border px-2 py-1", l.result === "OK" ? "border-emerald-400/20 bg-emerald-500/10 text-emerald-200" : "border-rose-400/20 bg-rose-500/10 text-rose-200")}>
+                                {l.result}
+                              </span>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </Card>
+              </div>
+              <div className="col-span-12 xl:col-span-3 space-y-4">
+                <MiniChart title="事件密度（示意）" />
+                <Card title="合规导出" right="审计">
+                  <button type="button" className="w-full rounded-2xl border border-indigo-400/25 bg-indigo-500/10 px-4 py-3 text-sm text-white hover:bg-indigo-500/15 hover:border-indigo-300/35 transition shadow-glow" onClick={() => alert("已导出审计日志（示例）。")}>
+                    导出日志
+                  </button>
+                </Card>
+              </div>
+            </div>
+          </PageShell>
+        );
+      }
+
+      function InboxView({ messages, setAppData, appendLog }) {
+        const [active, setActive] = useState(messages[0].id);
+        const msg = messages.find((m) => m.id === active) || messages[0];
+        return (
+          <PageShell title="站内信通知" subtitle="系统通知、@提及与审批消息。" actions={<Badge tone="indigo">INBOX</Badge>}>
+            <div className="grid grid-cols-12 gap-4 h-[calc(100vh-220px)]">
+              <div className="col-span-12 xl:col-span-4 space-y-2 overflow-auto">
+                {messages.map((m) => (
+                  <button key={m.id} type="button" onClick={() => setActive(m.id)} className={cx("w-full text-left rounded-2xl border px-4 py-3 transition", m.id === msg.id ? "border-indigo-400/25 bg-indigo-500/10 shadow-glow" : "border-white/10 bg-white/5 hover:bg-white/8")}>
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0">
+                        <div className="text-sm text-white truncate">{m.title}</div>
+                        <div className="mt-1 text-xs text-slate-500 truncate">{m.from} · {m.type}</div>
+                      </div>
+                      <div className="text-[10px] text-slate-500">{m.time}</div>
+                    </div>
+                    {m.unread ? <div className="mt-2 text-[10px] text-amber-200 border border-amber-400/20 bg-amber-500/10 rounded-full px-2 py-1 inline-flex">UNREAD</div> : null}
+                  </button>
+                ))}
+              </div>
+              <div className="col-span-12 xl:col-span-8 space-y-4 overflow-auto">
+                <Card title={msg.title} right={msg.time}>
+                  <div className="text-xs text-slate-400">来自：{msg.from}</div>
+                  <div className="mt-3 text-sm text-slate-100 leading-relaxed whitespace-pre-wrap">{msg.body}</div>
+                  <div className="mt-4 flex items-center gap-2">
+                    <button type="button" className="rounded-2xl border border-indigo-400/25 bg-indigo-500/10 px-4 py-3 text-sm text-white hover:bg-indigo-500/15 hover:border-indigo-300/35 transition shadow-glow" onClick={() => {
+                      setAppData((d) => ({
+                        ...d,
+                        messages: d.messages.map((x) => (x.id === msg.id ? { ...x, unread: false } : x)),
+                      }));
+                      appendLog("READ_MESSAGE", `Message#${msg.id}`);
+                    }}>
+                      标记已读
+                    </button>
+                    <button type="button" className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-slate-200 hover:bg-white/10 transition" onClick={() => appendLog("ARCHIVE_MESSAGE", `Message#${msg.id}`)}>
+                      归档
+                    </button>
+                  </div>
+                </Card>
+                <MiniChart title="通知量趋势（示意）" />
+              </div>
+            </div>
+          </PageShell>
+        );
+      }
+
+      function PrefsView({ prefs, setAppData, appendLog }) {
+        return (
+          <PageShell title="个人偏好" subtitle="快捷键、默认模板与工作流偏好。" actions={<Badge tone="indigo">PREFS</Badge>}>
+            <div className="grid grid-cols-12 gap-4">
+              <div className="col-span-12 xl:col-span-7 space-y-4">
+                <Card title="工作流" right="偏好">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    {[
+                      ["默认项目", "defaultProject", ["ALPHA", "BETA", "GAMMA", "DELTA"]],
+                      ["默认模板", "defaultTemplate", ["标准实验记录", "材料表征", "生物实验", "化学合成"]],
+                      ["自动保存", "autosave", ["on", "off"]],
+                      ["只读预览默认", "readonlyDefault", ["off", "on"]],
+                    ].map(([label, key, opts]) => (
+                      <label key={key} className="block">
+                        <div className="text-xs text-slate-400 mb-1">{label}</div>
+                        <select value={prefs[key]} onChange={(e) => setAppData((d) => ({ ...d, prefs: { ...d.prefs, [key]: e.target.value } }))} className="w-full rounded-2xl border border-white/10 bg-black/40 px-4 py-3 text-sm text-slate-100 outline-none focus:border-indigo-400/45">
+                          {opts.map((o) => (
+                            <option key={o} value={o}>
+                              {o}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+                    ))}
+                  </div>
+                  <div className="mt-4 flex items-center gap-2">
+                    <button type="button" className="rounded-2xl border border-indigo-400/25 bg-indigo-500/10 px-4 py-3 text-sm text-white hover:bg-indigo-500/15 hover:border-indigo-300/35 transition shadow-glow" onClick={() => appendLog("UPDATE_PREFS", "UserPrefs")}>
+                      保存
+                    </button>
+                    <button type="button" className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-slate-200 hover:bg-white/10 transition" onClick={() => setAppData((d) => ({ ...d, prefs: { defaultProject: "ALPHA", defaultTemplate: "标准实验记录", autosave: "on", readonlyDefault: "off" } }))}>
+                      恢复默认
+                    </button>
+                  </div>
+                </Card>
+              </div>
+              <div className="col-span-12 xl:col-span-5 space-y-4">
+                <Card title="快捷键" right="效率">
+                  <div className="space-y-2 text-xs text-slate-400">
+                    {[
+                      ["N", "新建实验"],
+                      ["G", "实验记录列表"],
+                      ["A", "数据分析"],
+                      ["Ctrl+B", "折叠侧边栏"],
+                    ].map(([k, v]) => (
+                      <div key={k} className="flex items-center justify-between rounded-xl border border-white/10 bg-white/5 px-3 py-2">
+                        <span>{v}</span>
+                        <span className="text-slate-300">{k}</span>
+                      </div>
+                    ))}
+                  </div>
+                </Card>
+                <MiniChart title="个人使用趋势（示意）" />
+              </div>
+            </div>
+          </PageShell>
+        );
+      }
+
+      function SecurityView({ security, setAppData, appendLog }) {
+        return (
+          <PageShell title="账号安全" subtitle="2FA、设备登录与安全策略。" actions={<Badge tone="rose">SECURITY</Badge>}>
+            <div className="grid grid-cols-12 gap-4">
+              <div className="col-span-12 xl:col-span-7 space-y-4">
+                <Card title="策略" right="账户级">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
+                    <div className="rounded-2xl border border-white/10 bg-white/5 p-3">
+                      <div className="text-slate-100">双因素认证 (2FA)</div>
+                      <div className="mt-1 text-slate-400">建议对 Owner/Admin 强制启用。</div>
+                      <div className="mt-3 flex items-center gap-2">
+                        <button type="button" className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs text-slate-200 hover:bg-white/10 transition" onClick={() => { setAppData((d) => ({ ...d, security: { ...d.security, twoFA: true } })); appendLog("SECURITY_UPDATE", "2FA:on"); }}>启用</button>
+                        <button type="button" className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs text-slate-200 hover:bg-white/10 transition" onClick={() => { setAppData((d) => ({ ...d, security: { ...d.security, twoFA: false } })); appendLog("SECURITY_UPDATE", "2FA:off"); }}>关闭</button>
+                        <span className="ml-auto text-[10px] text-slate-500">{security.twoFA ? "已启用" : "未启用"}</span>
+                      </div>
+                    </div>
+                    <div className="rounded-2xl border border-white/10 bg-white/5 p-3">
+                      <div className="text-slate-100">登录告警</div>
+                      <div className="mt-1 text-slate-400">异常设备/异地登录通知。</div>
+                      <div className="mt-3 flex items-center gap-2">
+                        <button type="button" className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs text-slate-200 hover:bg-white/10 transition" onClick={() => setAppData((d) => ({ ...d, security: { ...d.security, alerts: true } }))}>开启</button>
+                        <button type="button" className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs text-slate-200 hover:bg-white/10 transition" onClick={() => setAppData((d) => ({ ...d, security: { ...d.security, alerts: false } }))}>关闭</button>
+                        <span className="ml-auto text-[10px] text-slate-500">{security.alerts ? "已开启" : "未开启"}</span>
+                      </div>
+                    </div>
+                  </div>
+                </Card>
+                <Card title="会话与设备" right="可管理">
+                  <div className="space-y-2 text-xs">
+                    {security.sessions.map((s) => (
+                      <div key={s.id} className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <div className="text-slate-100">{s.device}</div>
+                          <div className="mt-1 text-[11px] text-slate-500">
+                            IP {s.ip} · 最近活跃 {s.last}
+                          </div>
+                        </div>
+                        <button type="button" className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs text-slate-200 hover:bg-white/10 transition" onClick={() => {
+                          setAppData((d) => ({ ...d, security: { ...d.security, sessions: d.security.sessions.filter((x) => x.id !== s.id) } }));
+                          appendLog("SESSION_REVOKE", `Session#${s.id}`);
+                        }}>
+                          下线
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </Card>
+              </div>
+              <div className="col-span-12 xl:col-span-5 space-y-4">
+                <MiniChart title="风险指标（示意）" />
+                <Card title="建议" right="安全">
+                  <div className="text-xs text-slate-400 leading-relaxed">
+                    建议启用 2FA + 强密码策略；对权限变更、导出与删除等关键操作强制二次确认并记录审计。
+                  </div>
+                </Card>
+              </div>
+            </div>
+          </PageShell>
+        );
+      }
+
+      function StorageView({ storage }) {
+        const { totalGB, usedGB, breakdown } = storage;
+        return (
+          <PageShell title="存储空间分析" subtitle="容量、冷热分层与清理建议。" actions={<Badge tone="amber">STORAGE</Badge>}>
+            <div className="grid grid-cols-12 gap-4">
+              <div className="col-span-12 xl:col-span-8 space-y-4">
+                <Card title="容量概览" right={`${usedGB} / ${totalGB} GB`}>
+                  <div className="rounded-2xl border border-white/10 bg-black/20 p-4">
+                    <div className="flex items-center justify-between text-xs text-slate-400">
+                      <span>已用</span>
+                      <span>{Math.round((usedGB / totalGB) * 100)}%</span>
+                    </div>
+                    <div className="mt-2 h-2 rounded-full bg-white/10 overflow-hidden">
+                      <div className="h-2 rounded-full bg-amber-400/80" style={{ width: `${(usedGB / totalGB) * 100}%` }}></div>
+                    </div>
+                    <div className="mt-4 grid grid-cols-3 gap-3 text-xs">
+                      {breakdown.map((b) => (
+                        <div key={b.type} className="rounded-2xl border border-white/10 bg-white/5 p-3">
+                          <div className="text-[10px] text-slate-500">{b.type}</div>
+                          <div className="mt-1 text-lg text-white">{b.gb} GB</div>
+                          <div className="mt-1 text-[11px] text-slate-500">{b.note}</div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </Card>
+                <Card title="优化建议" right="治理">
+                  <div className="space-y-2 text-xs text-slate-300">
+                    {[
+                      ["将 90 天未访问附件移动到归档层", "预计节省 12% 热存储"],
+                      ["对 CSV 原始数据启用压缩存储", "预计节省 8%"],
+                      ["对重复图表启用去重（内容指纹）", "预计节省 5%"],
+                    ].map(([a, b]) => (
+                      <div key={a} className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3">
+                        <div className="text-slate-100">{a}</div>
+                        <div className="mt-1 text-[11px] text-slate-500">{b}</div>
+                      </div>
+                    ))}
+                  </div>
+                </Card>
+              </div>
+              <div className="col-span-12 xl:col-span-4 space-y-4">
+                <MiniChart title="存储趋势（示意）" />
+                <Card title="策略" right="冷热分层">
+                  <div className="text-xs text-slate-400 leading-relaxed">
+                    建议按项目阶段进行冷热分层：进行中项目保持热数据，已完成/归档项目按策略迁移与压缩；迁移动作写入操作日志。
+                  </div>
+                </Card>
+              </div>
+            </div>
+          </PageShell>
+        );
+      }
+
+      function HelpdeskView({ tickets, setAppData, appendLog }) {
+        const [form, setForm] = useState({ title: "", category: "使用咨询", priority: "中", content: "" });
+        return (
+          <PageShell title="帮助文档工单" subtitle="搜索帮助、创建工单与追踪进度。" actions={<Badge tone="indigo">SUPPORT</Badge>}>
+            <div className="grid grid-cols-12 gap-4">
+              <div className="col-span-12 xl:col-span-7 space-y-4">
+                <Card title="知识库" right="常见问题">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs text-slate-300">
+                    {[
+                      ["如何创建实验模板？", "在 SOP 模板库创建后，可一键应用到新建实验。"],
+                      ["如何启用 2FA？", "在账号安全中启用，并可对角色强制要求。"],
+                      ["如何导出记录？", "在只读预览中导出 PDF，导出行为写入审计日志。"],
+                      ["附件如何管理？", "拖拽上传后进入附件列表，可在存储分析查看容量。"],
+                    ].map(([q, a]) => (
+                      <div key={q} className="rounded-2xl border border-white/10 bg-white/5 p-3">
+                        <div className="text-slate-100">{q}</div>
+                        <div className="mt-1 text-slate-400">{a}</div>
+                      </div>
+                    ))}
+                  </div>
+                </Card>
+                <Card title="工单列表" right={`${tickets.length} 条`}>
+                  <div className="space-y-2">
+                    {tickets.map((t) => (
+                      <div key={t.id} className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3">
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="min-w-0">
+                            <div className="text-sm text-white truncate">{t.title}</div>
+                            <div className="mt-1 text-xs text-slate-500">
+                              #{t.id} · {t.category} · 优先级 {t.priority} · {t.time}
+                            </div>
+                          </div>
+                          <span className={cx("text-[10px] rounded-full border px-2 py-1", t.status === "Open" ? "border-amber-400/20 bg-amber-500/10 text-amber-200" : "border-emerald-400/20 bg-emerald-500/10 text-emerald-200")}>
+                            {t.status}
+                          </span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </Card>
+              </div>
+              <div className="col-span-12 xl:col-span-5 space-y-4">
+                <Card title="创建工单" right="提交">
+                  <div className="space-y-3">
+                    <input value={form.title} onChange={(e) => setForm((f) => ({ ...f, title: e.target.value }))} placeholder="标题" className="w-full rounded-2xl border border-white/10 bg-black/40 px-4 py-3 text-sm text-slate-100 outline-none focus:border-indigo-400/45" />
+                    <div className="grid grid-cols-2 gap-3">
+                      <select value={form.category} onChange={(e) => setForm((f) => ({ ...f, category: e.target.value }))} className="w-full rounded-2xl border border-white/10 bg-black/40 px-4 py-3 text-sm text-slate-100 outline-none focus:border-indigo-400/45">
+                        <option>使用咨询</option>
+                        <option>权限与审计</option>
+                        <option>数据分析</option>
+                        <option>存储与附件</option>
+                        <option>Bug</option>
+                      </select>
+                      <select value={form.priority} onChange={(e) => setForm((f) => ({ ...f, priority: e.target.value }))} className="w-full rounded-2xl border border-white/10 bg-black/40 px-4 py-3 text-sm text-slate-100 outline-none focus:border-indigo-400/45">
+                        <option>低</option>
+                        <option>中</option>
+                        <option>高</option>
+                        <option>紧急</option>
+                      </select>
+                    </div>
+                    <textarea value={form.content} onChange={(e) => setForm((f) => ({ ...f, content: e.target.value }))} placeholder="内容描述" className="w-full min-h-[120px] rounded-2xl border border-white/10 bg-black/40 px-4 py-3 text-sm text-slate-100 outline-none focus:border-indigo-400/45"></textarea>
+                    <button
+                      type="button"
+                      className="w-full rounded-2xl border border-indigo-400/25 bg-indigo-500/10 px-4 py-3 text-sm text-white hover:bg-indigo-500/15 hover:border-indigo-300/35 transition shadow-glow"
+                      onClick={() => {
+                        const id = "T" + String(Date.now()).slice(-5);
+                        setAppData((d) => ({
+                          ...d,
+                          tickets: [{ id, title: form.title || "未命名工单", category: form.category, priority: form.priority, status: "Open", time: "刚刚" }, ...d.tickets],
+                        }));
+                        appendLog("CREATE_TICKET", `Ticket#${id}`);
+                        setForm({ title: "", category: "使用咨询", priority: "中", content: "" });
+                      }}
+                    >
+                      提交
+                    </button>
+                  </div>
+                </Card>
+                <MiniChart title="支持请求趋势（示意）" />
+              </div>
+            </div>
+          </PageShell>
+        );
+      }
+
+      function createDefaultAppData() {
+        return {
+          activeProjectId: "ALPHA",
+          activeRecordId: "1000",
+          projects: [
+            { id: "ALPHA", name: "Alpha - 缓冲体系优化", owner: "Wei", stage: "进行中", updatedAt: "今天 18:10" },
+            { id: "BETA", name: "Beta - PCR 体系复现", owner: "Lin", stage: "已完成", updatedAt: "昨天 09:30" },
+            { id: "GAMMA", name: "Gamma - 材料表征数据汇总", owner: "Qian", stage: "进行中", updatedAt: "今天 12:05" },
+          ],
+          records: Array.from({ length: 18 }).map((_, i) => ({
+            id: String(1000 + i),
+            title:
+              ["蛋白纯化", "PCR 扩增", "细胞培养", "溶液配制", "材料表征"][i % 5] +
+              " · RUN " +
+              (i + 1),
+            project: ["ALPHA", "BETA", "GAMMA", "DELTA"][i % 4],
+            owner: ["Wei", "Lin", "Qian", "Zhou"][i % 4],
+            status: ["进行中", "已完成", "已归档"][i % 3],
+            updatedAt: `2026-03-${String(26 - (i % 9)).padStart(2, "0")} ${10 + (i % 9)}:${String(
+              (i * 7) % 60
+            ).padStart(2, "0")}`,
+            tags: [["SOP", "QC"], ["RAW", "图谱"], ["批次", "复现"], ["对照", "温控"]][i % 4],
+          })),
+          docs: [
+            { id: "d1", title: "Buffer Optimization Paper 2026", type: "论文", project: "ALPHA", updatedAt: "2026-03-20 09:10" },
+            { id: "d2", title: "PCR Protocol Summary", type: "协议", project: "BETA", updatedAt: "2026-03-18 14:22" },
+            { id: "d3", title: "Material Characterization Report", type: "报告", project: "GAMMA", updatedAt: "2026-03-21 11:03" },
+          ],
+          sops: [
+            { id: "s1", name: "SOP-PUR-001 蛋白纯化", version: "1.2", owner: "Wei", scope: "关键" },
+            { id: "s2", name: "SOP-PCR-003 扩增与质控", version: "1.0", owner: "Lin", scope: "通用" },
+          ],
+          members: [
+            { id: "000101", name: "Wei", email: "wei@lab.com", role: "Owner", status: "Active" },
+            { id: "000102", name: "Lin", email: "lin@lab.com", role: "Admin", status: "Active" },
+            { id: "000103", name: "Qian", email: "qian@lab.com", role: "Member", status: "Active" },
+            { id: "000104", name: "Zhou", email: "zhou@lab.com", role: "Viewer", status: "Invited" },
+          ],
+          logs: Array.from({ length: 24 }).map((_, i) => ({
+            id: "L" + (9000 + i),
+            time: `2026-03-${String(26 - (i % 9)).padStart(2, "0")} ${9 + (i % 10)}:${String(
+              (i * 13) % 60
+            ).padStart(2, "0")}`,
+            actor: ["Wei", "Lin", "Qian", "System"][i % 4],
+            action: ["CREATE", "UPDATE", "EXPORT", "RBAC_CHANGE"][i % 4],
+            target: ["Record#1003", "Project#ALPHA", "Doc#d1", "Role#Member"][i % 4],
+            result: i % 11 === 0 ? "DENY" : "OK",
+          })),
+          messages: [
+            { id: "m1", title: "@你：请审阅 Record#1006", time: "今天 16:20", type: "审批", unread: true, from: "Lin", body: "已提交实验记录审批：Record#1006。\n请检查对照参数与附件指纹是否完整。" },
+            { id: "m2", title: "系统：存储利用率达到 52%", time: "昨天 11:05", type: "系统", unread: false, from: "System", body: "建议将冷数据归档并启用压缩与去重策略。" },
+            { id: "m3", title: "项目：BETA 已完成，建议归档", time: "2026-03-20 09:42", type: "项目", unread: false, from: "Qian", body: "建议进入归档流程：导出关键记录、固化 SOP 版本、迁移附件到归档层、生成最终报告。" },
+          ],
+          prefs: { defaultProject: "ALPHA", defaultTemplate: "标准实验记录", autosave: "on", readonlyDefault: "off" },
+          security: {
+            twoFA: true,
+            alerts: true,
+            sessions: [
+              { id: "s1", device: "Windows · Edge", ip: "10.0.0.12", last: "刚刚" },
+              { id: "s2", device: "macOS · Chrome", ip: "10.0.0.8", last: "昨天 21:10" },
+            ],
+          },
+          storage: {
+            totalGB: 200,
+            usedGB: 104,
+            breakdown: [
+              { type: "图表", gb: 38, note: "PNG/JPG + 预览" },
+              { type: "原始数据", gb: 44, note: "CSV/JSON/二进制" },
+              { type: "文档", gb: 22, note: "PDF/协议/报告" },
+            ],
+          },
+          tickets: [
+            { id: "T10241", title: "导出 PDF 页眉需要自定义", category: "使用咨询", priority: "中", status: "Open", time: "2026-03-23 13:10" },
+            { id: "T10238", title: "权限矩阵支持模板", category: "权限与审计", priority: "高", status: "Resolved", time: "2026-03-20 10:05" },
+          ],
+        };
+      }
+
+      function App() {
+        const [activeId, setActiveId] = useState("dashboard");
+        const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+        const [navOpen, setNavOpen] = useState({
+          core: true,
+          auth: false,
+          project: true,
+          record: true,
+          governance: false,
+          personal: false,
+          support: false,
+        });
+
+        const [expModel, setExpModel] = useState({
+          title: "",
+          project: "Alpha",
+          template: "标准实验记录",
+          rich: "",
+          files: [],
+          uploading: false,
+        });
+
+        const demoStateRef = useRef({ running: false, done: false });
+        const [demoState, setDemoState] = useState({ running: false, done: false });
+        const [appData, setAppData] = useState(() => {
+          try {
+            const raw = localStorage.getItem("yunyan_app_data_v1");
+            if (!raw) return createDefaultAppData();
+            const parsed = JSON.parse(raw);
+            return { ...createDefaultAppData(), ...parsed };
+          } catch {
+            return createDefaultAppData();
+          }
+        });
+
+        const go = (id) => setActiveId(id);
+
+        const appendLog = (action, target, result = "OK", actor = "Wei") => {
+          setAppData((d) => ({
+            ...d,
+            logs: [
+              {
+                id: "L" + String(Date.now()).slice(-6),
+                time: new Date().toLocaleString("zh-CN", { hour12: false }),
+                actor,
+                action,
+                target,
+                result,
+              },
+              ...d.logs,
+            ],
+          }));
+        };
+
+        useEffect(() => {
+          try {
+            localStorage.setItem("yunyan_app_data_v1", JSON.stringify(appData));
+          } catch {}
+        }, [appData]);
+
+        // 快捷键（高效操作）
+        useEffect(() => {
+          const onKey = (e) => {
+            if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "b") {
+              e.preventDefault();
+              setSidebarCollapsed((v) => !v);
+            }
+            if (e.target && (e.target.tagName === "INPUT" || e.target.tagName === "TEXTAREA")) {
+              return;
+            }
+            const k = e.key.toLowerCase();
+            if (k === "n") go("newExp");
+            if (k === "g") go("records");
+            if (k === "a") go("analytics");
+          };
+          window.addEventListener("keydown", onKey);
+          return () => window.removeEventListener("keydown", onKey);
+        }, []);
+
+        // 仅首次进入 dashboard 时执行 ≥30秒 新手引导
+        useEffect(() => {
+          if (activeId !== "dashboard") return;
+          const key = "yunyan_onboarding_v1_done";
+          const already = localStorage.getItem(key) === "1";
+          if (already) {
+            demoStateRef.current = { running: false, done: true };
+            setDemoState({ running: false, done: true });
+            return;
+          }
+          if (demoStateRef.current.running) return;
+
+          const run = async () => {
+            demoStateRef.current = { running: true, done: false };
+            setDemoState({ running: true, done: false });
+
+            // 创建 overlay 元素：虚拟鼠标 + 点击波纹 + toast
+            const cursor = document.createElement("div");
+            cursor.className = "demo-cursor";
+            const click = document.createElement("div");
+            click.className = "demo-click";
+            const toastWrap = document.createElement("div");
+            toastWrap.className = "demo-toast";
+            const toast = document.createElement("div");
+            toast.className = "rounded-2xl px-4 py-3";
+            toastWrap.appendChild(toast);
+            document.body.appendChild(cursor);
+            document.body.appendChild(click);
+            document.body.appendChild(toastWrap);
+
+            let spotlightCleanup = null;
+
+            const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+            const setToast = (title, desc) => {
+              toast.innerHTML = `
+                <div class="flex items-start gap-3">
+                  <div class="mt-0.5 h-2.5 w-2.5 rounded-full bg-indigo-400/90 shadow-[0_0_0_2px_rgba(99,102,241,.18)]"></div>
+                  <div class="min-w-0">
+                    <div class="text-sm text-white">${title}</div>
+                    <div class="mt-1 text-xs text-slate-300">${desc}</div>
+                  </div>
+                  <div class="ml-auto text-[10px] text-slate-500 border border-white/10 bg-white/5 rounded-full px-2 py-1">GUIDE</div>
+                </div>
+              `;
+            };
+
+            const rectOf = (el) => el.getBoundingClientRect();
+
+            const moveCursorTo = async (x, y, ms = 900) => {
+              const start = performance.now();
+              const from = cursor.getBoundingClientRect();
+              const fx = from.left;
+              const fy = from.top;
+              const easeOutCubic = (t) => 1 - Math.pow(1 - t, 3);
+              const tick = (now) => {
+                const t = Math.min(1, (now - start) / ms);
+                const e = easeOutCubic(t);
+                const nx = fx + (x - fx) * e;
+                const ny = fy + (y - fy) * e;
+                cursor.style.transform = `translate(${nx}px, ${ny}px)`;
+                if (t < 1) requestAnimationFrame(tick);
+              };
+              requestAnimationFrame(tick);
+              await sleep(ms);
+            };
+
+            const clickAt = async (x, y) => {
+              click.style.transform = `translate(${x}px, ${y}px)`;
+              click.style.opacity = "1";
+              click.animate(
+                [
+                  { transform: `translate(${x}px, ${y}px) scale(.65)`, opacity: 0.9 },
+                  { transform: `translate(${x}px, ${y}px) scale(1.15)`, opacity: 0 },
+                ],
+                { duration: 520, easing: "ease-out" }
+              );
+              await sleep(240);
+              click.style.opacity = "0";
+            };
+
+            const spotlight = (el) => {
+              if (!el) return () => {};
+              const prevPos = el.style.position;
+              const prevZ = el.style.zIndex;
+              const prevOverflow = el.style.overflow;
+              if (getComputedStyle(el).position === "static") {
+                el.style.position = "relative";
+              }
+              el.style.zIndex = "999996";
+              el.style.overflow = "visible";
+              const s = document.createElement("div");
+              s.className = "demo-spotlight";
+              const ring = document.createElement("div");
+              ring.className = "demo-ring animate-pulseRing";
+              el.appendChild(s);
+              el.appendChild(ring);
+              return () => {
+                try {
+                  s.remove();
+                  ring.remove();
+                } catch {}
+                el.style.position = prevPos;
+                el.style.zIndex = prevZ;
+                el.style.overflow = prevOverflow;
+              };
+            };
+
+            const moveToElCenter = async (el, ms = 900, yBias = 0) => {
+              const r = rectOf(el);
+              const x = r.left + r.width * 0.55;
+              const y = r.top + r.height * 0.55 + yBias;
+              await moveCursorTo(x, y, ms);
+              return { x, y };
+            };
+
+            const safeGet = (id) => document.getElementById(id);
+
+            const cleanup = () => {
+              try {
+                spotlightCleanup?.();
+              } catch {}
+              try {
+                cursor.remove();
+                click.remove();
+                toastWrap.remove();
+              } catch {}
+            };
+
+            // 确保时长 ≥30秒：脚本以时间片构成，目标约 36-42 秒
+            try {
+              // 0) 开场
+              setToast("欢迎来到 云研 ELN", "新手引导将带你完成：新建实验 → 填写 → 上传附件 → 数据分析。");
+              await sleep(2400);
+
+              // 1) 聚焦“新建实验”按钮并点击
+              const newBtn = safeGet("demo-newexp-btn");
+              if (newBtn) {
+                spotlightCleanup = spotlight(newBtn);
+                await sleep(1200);
+                const { x, y } = await moveToElCenter(newBtn, 1200);
+                await sleep(500);
+                await clickAt(x, y);
+                await sleep(400);
+                newBtn.click();
+              }
+              spotlightCleanup?.();
+              spotlightCleanup = null;
+
+              setToast("步骤 1/3", "已进入「新建实验」。现在录入标题并完善关键字段。");
+              await sleep(2200);
+
+              // 2) 输入标题（模拟逐字输入）
+              const titleInput = safeGet("demo-exp-title");
+              if (titleInput) {
+                titleInput.scrollIntoView({ behavior: "smooth", block: "center" });
+                await sleep(900);
+                spotlightCleanup = spotlight(titleInput);
+                await sleep(900);
+                const { x, y } = await moveToElCenter(titleInput, 900, 0);
+                await clickAt(x, y);
+                titleInput.focus();
+                await sleep(520);
+
+                const text = "蛋白纯化 · 缓冲液优化 · Run 03（云研）";
+                // 逐字输入，控制节奏以拉长引导时长
+                for (let i = 0; i < text.length; i++) {
+                  const v = text.slice(0, i + 1);
+                  titleInput.value = v;
+                  titleInput.dispatchEvent(new Event("input", { bubbles: true }));
+                  await sleep(85);
+                }
+                await sleep(900);
+              }
+              spotlightCleanup?.();
+              spotlightCleanup = null;
+
+              // 3) 停留说明（让用户看到 UI 信息密度）
+              setToast("步骤 2/3", "标题已录入。接下来上传图表/数据，并在附件列表确认。");
+              await sleep(2600);
+
+              // 4) 移动到上传区，模拟拖放与进度
+              const uploadZone = safeGet("demo-upload-zone");
+              if (uploadZone) {
+                uploadZone.scrollIntoView({ behavior: "smooth", block: "center" });
+                await sleep(900);
+                spotlightCleanup = spotlight(uploadZone);
+                await sleep(900);
+                const { x, y } = await moveToElCenter(uploadZone, 1200, 10);
+                await sleep(420);
+                await clickAt(x, y);
+                await sleep(520);
+
+                // 触发模拟上传（不依赖真实文件）：通过一个自定义事件，让组件感知“引导上传”
+                window.dispatchEvent(
+                  new CustomEvent("yunyan_demo_upload", {
+                    detail: {
+                      files: [
+                        { name: "chart_run03.png", size: 278234 },
+                        { name: "raw_signal_run03.csv", size: 90214 },
+                      ],
+                    },
+                  })
+                );
+              }
+              spotlightCleanup?.();
+              spotlightCleanup = null;
+
+              // 5) 等待模拟上传完成 + 解释
+              setToast("步骤 3/3", "附件已上传。下一步进入「数据图表分析」查看趋势与异常点。");
+              await sleep(5200);
+
+              // 6) 跳转分析页并停留一段时间，确保总时长
+              setActiveId("analytics");
+              await sleep(900);
+              setToast("分析视图", "在此进行筛选、对照与异常定位，并可生成分析报告。");
+              await sleep(5400);
+
+              // 7) 回到工作台，收尾
+              setActiveId("dashboard");
+              await sleep(900);
+              setToast("引导完成", "你已完成核心闭环：新建 → 填写 → 上传 → 分析。可在右上角手动重播引导。");
+              await sleep(4200);
+
+              localStorage.setItem(key, "1");
+              demoStateRef.current = { running: false, done: true };
+              setDemoState({ running: false, done: true });
+            } catch (e) {
+              console.error(e);
+              demoStateRef.current = { running: false, done: false };
+              setDemoState({ running: false, done: false });
+            } finally {
+              cleanup();
+            }
+          };
+
+          run();
+        }, [activeId]);
+
+        // Demo 上传事件：让 onboarding 可以触发“假文件上传”
+        // 事件监听放在 Dropzone 内部（用于显示进度条），这里不重复处理避免附件双份
+
+        const activeName = PAGES.find((p) => p.id === activeId)?.name || activeId;
+
+        const view = useMemo(() => {
+          switch (activeId) {
+            case "dashboard":
+              return <DashboardView go={go} demoState={demoState} />;
+            case "newExp":
+              return (
+                <NewExperimentView
+                  model={expModel}
+                  setModel={setExpModel}
+                  onSave={(m) => {
+                    const id = String(Date.now()).slice(-6);
+                    const rec = {
+                      id,
+                      title: m.title || `新实验 ${id}`,
+                      project: (m.project || "Alpha").toUpperCase(),
+                      owner: "Wei",
+                      status: "进行中",
+                      updatedAt: new Date().toLocaleString("zh-CN", { hour12: false }),
+                      tags: ["手动创建", m.template || "模板"],
+                    };
+                    setAppData((d) => ({
+                      ...d,
+                      records: [rec, ...d.records],
+                      activeRecordId: id,
+                    }));
+                    appendLog("CREATE", `Record#${id}`);
+                  }}
+                />
+              );
+            case "analytics":
+              return <AnalyticsView />;
+            case "records":
+              return <RecordsView go={go} rows={appData.records} setAppData={setAppData} appendLog={appendLog} />;
+            case "recordReadonly":
+              return <RecordReadonlyView go={go} id={appData.activeRecordId} appendLog={appendLog} />;
+            case "projects":
+              return <ProjectsView go={go} projects={appData.projects} setAppData={setAppData} appendLog={appendLog} />;
+            case "projectDetail":
+              return <ProjectDetailView go={go} activeProjectId={appData.activeProjectId} records={appData.records} />;
+            case "docs":
+              return <DocsView docs={appData.docs} setAppData={setAppData} appendLog={appendLog} />;
+            case "sop":
+              return <SopView sops={appData.sops} setAppData={setAppData} appendLog={appendLog} />;
+            case "team":
+              return <TeamView members={appData.members} setAppData={setAppData} appendLog={appendLog} />;
+            case "rbac":
+              return <RbacView />;
+            case "audit":
+              return <AuditView logs={appData.logs} />;
+            case "inbox":
+              return <InboxView messages={appData.messages} setAppData={setAppData} appendLog={appendLog} />;
+            case "prefs":
+              return <PrefsView prefs={appData.prefs} setAppData={setAppData} appendLog={appendLog} />;
+            case "security":
+              return <SecurityView security={appData.security} setAppData={setAppData} appendLog={appendLog} />;
+            case "storage":
+              return <StorageView storage={appData.storage} />;
+            case "helpdesk":
+              return <HelpdeskView tickets={appData.tickets} setAppData={setAppData} appendLog={appendLog} />;
+            case "login":
+              return <LoginView go={go} />;
+            case "register":
+              return <RegisterView go={go} />;
+            case "landing":
+              return <LandingView go={go} />;
+            default:
+              return (
+                <PlaceholderPage
+                  title={activeName}
+                  subtitle="该页面已注册到 20 视图导航。"
+                  blocks={2}
+                />
+              );
+          }
+        }, [activeId, demoState, expModel, appData]);
+
+        return (
+          <div className="h-screen w-screen overflow-hidden">
+            <div className="h-full flex">
+              {/* Sidebar */}
+              <aside
+                className={cx(
+                  "h-full border-r border-white/10 bg-slate-950/60 backdrop-blur flex flex-col transition-all duration-200",
+                  sidebarCollapsed ? "w-[72px]" : "w-[320px]"
+                )}
+              >
+                <div className="p-3 border-b border-white/10">
+                  <div className="flex items-center justify-between gap-2">
+                    <button
+                      type="button"
+                      className="flex items-center gap-3 rounded-2xl border border-white/10 bg-white/5 px-3 py-2 hover:bg-white/10 transition w-full"
+                      onClick={() => go("dashboard")}
+                      title="返回工作台"
+                    >
+                      <div className="h-8 w-8 rounded-xl bg-indigo-500/15 border border-indigo-400/25 shadow-glow flex items-center justify-center text-indigo-100 text-sm">
+                        云
+                      </div>
+                      {!sidebarCollapsed ? (
+                        <div className="min-w-0">
+                          <div className="text-sm text-white leading-tight">云研</div>
+                          <div className="text-[10px] text-slate-500 leading-tight truncate">
+                            ELN · SaaS
+                          </div>
+                        </div>
+                      ) : null}
+                    </button>
+                    <button
+                      type="button"
+                      className="shrink-0 rounded-2xl border border-white/10 bg-white/5 px-3 py-2 text-xs text-slate-200 hover:bg-white/10 transition"
+                      onClick={() => setSidebarCollapsed((v) => !v)}
+                      title="折叠/展开 (Ctrl+B)"
+                    >
+                      {sidebarCollapsed ? "→" : "←"}
+                    </button>
+                  </div>
+                </div>
+
+                <div className="flex-1 overflow-auto p-3">
+                  <div className="flex items-center justify-between">
+                    {!sidebarCollapsed ? (
+                      <div className="text-[10px] tracking-widest text-slate-500">
+                        NAVIGATION TREE
+                      </div>
+                    ) : (
+                      <div className="text-[10px] tracking-widest text-slate-500">NAV</div>
+                    )}
+                    {!sidebarCollapsed ? (
+                      <div className="text-[10px] text-slate-600">20 views</div>
+                    ) : null}
+                  </div>
+
+                  <TreeSection
+                    title={sidebarCollapsed ? "CORE" : "核心"}
+                    defaultOpen={navOpen.core}
+                  >
+                    <NavItem
+                      active={activeId === "dashboard"}
+                      label={sidebarCollapsed ? "看板" : "工作台看板"}
+                      onClick={() => go("dashboard")}
+                      idForDemo="demo-nav-dashboard"
+                    />
+                    <NavItem
+                      active={activeId === "newExp"}
+                      label={sidebarCollapsed ? "新建" : "新建实验"}
+                      onClick={() => go("newExp")}
+                      idForDemo="demo-nav-newexp"
+                    />
+                  </TreeSection>
+
+                  <TreeSection title={sidebarCollapsed ? "AUTH" : "账号"} defaultOpen={navOpen.auth}>
+                    <NavItem
+                      active={activeId === "login"}
+                      label={sidebarCollapsed ? "登录" : "登录"}
+                      onClick={() => go("login")}
+                    />
+                    <NavItem
+                      active={activeId === "register"}
+                      label={sidebarCollapsed ? "注册" : "注册"}
+                      onClick={() => go("register")}
+                    />
+                    <NavItem
+                      active={activeId === "security"}
+                      label={sidebarCollapsed ? "安全" : "账号安全"}
+                      onClick={() => go("security")}
+                    />
+                  </TreeSection>
+
+                  <TreeSection
+                    title={sidebarCollapsed ? "PRODUCT" : "产品"}
+                    defaultOpen={navOpen.project}
+                  >
+                    <NavItem
+                      active={activeId === "landing"}
+                      label={sidebarCollapsed ? "官网" : "产品官网Landing"}
+                      onClick={() => go("landing")}
+                    />
+                    <NavItem
+                      active={activeId === "projects"}
+                      label={sidebarCollapsed ? "项目" : "项目管理"}
+                      onClick={() => go("projects")}
+                    />
+                    <NavItem
+                      active={activeId === "projectDetail"}
+                      label={sidebarCollapsed ? "详情" : "项目详情"}
+                      onClick={() => go("projectDetail")}
+                    />
+                  </TreeSection>
+
+                  <TreeSection
+                    title={sidebarCollapsed ? "RECORDS" : "实验记录"}
+                    defaultOpen={navOpen.record}
+                  >
+                    <NavItem
+                      active={activeId === "records"}
+                      label={sidebarCollapsed ? "列表" : "实验记录列表"}
+                      onClick={() => go("records")}
+                    />
+                    <NavItem
+                      active={activeId === "recordReadonly"}
+                      label={sidebarCollapsed ? "预览" : "实验只读预览"}
+                      onClick={() => go("recordReadonly")}
+                    />
+                    <NavItem
+                      active={activeId === "analytics"}
+                      label={sidebarCollapsed ? "分析" : "数据图表分析"}
+                      onClick={() => go("analytics")}
+                    />
+                    <NavItem
+                      active={activeId === "docs"}
+                      label={sidebarCollapsed ? "文库" : "文档资料库"}
+                      onClick={() => go("docs")}
+                    />
+                    <NavItem
+                      active={activeId === "sop"}
+                      label={sidebarCollapsed ? "SOP" : "SOP模板库"}
+                      onClick={() => go("sop")}
+                    />
+                  </TreeSection>
+
+                  <TreeSection
+                    title={sidebarCollapsed ? "GOV" : "治理"}
+                    defaultOpen={navOpen.governance}
+                  >
+                    <NavItem
+                      active={activeId === "team"}
+                      label={sidebarCollapsed ? "成员" : "团队成员管理"}
+                      onClick={() => go("team")}
+                    />
+                    <NavItem
+                      active={activeId === "rbac"}
+                      label={sidebarCollapsed ? "权限" : "权限配置"}
+                      onClick={() => go("rbac")}
+                    />
+                    <NavItem
+                      active={activeId === "audit"}
+                      label={sidebarCollapsed ? "日志" : "操作日志"}
+                      onClick={() => go("audit")}
+                    />
+                  </TreeSection>
+
+                  <TreeSection
+                    title={sidebarCollapsed ? "ME" : "个人"}
+                    defaultOpen={navOpen.personal}
+                  >
+                    <NavItem
+                      active={activeId === "prefs"}
+                      label={sidebarCollapsed ? "偏好" : "个人偏好"}
+                      onClick={() => go("prefs")}
+                    />
+                    <NavItem
+                      active={activeId === "storage"}
+                      label={sidebarCollapsed ? "存储" : "存储空间分析"}
+                      onClick={() => go("storage")}
+                    />
+                    <NavItem
+                      active={activeId === "inbox"}
+                      label={sidebarCollapsed ? "通知" : "站内信通知"}
+                      onClick={() => go("inbox")}
+                    />
+                  </TreeSection>
+
+                  <TreeSection
+                    title={sidebarCollapsed ? "HELP" : "支持"}
+                    defaultOpen={navOpen.support}
+                  >
+                    <NavItem
+                      active={activeId === "helpdesk"}
+                      label={sidebarCollapsed ? "工单" : "帮助文档工单"}
+                      onClick={() => go("helpdesk")}
+                    />
+                  </TreeSection>
+                </div>
+
+                <div className="p-3 border-t border-white/10">
+                  <div
+                    className={cx(
+                      "rounded-2xl border border-white/10 bg-black/25 p-3",
+                      sidebarCollapsed ? "text-center" : ""
+                    )}
+                  >
+                    {!sidebarCollapsed ? (
+                      <>
+                        <div className="text-xs text-slate-300">状态</div>
+                        <div className="mt-2 flex flex-wrap items-center gap-2">
+                          <Badge tone="emerald">ONLINE</Badge>
+                          <Badge tone="slate">{activeName}</Badge>
+                        </div>
+                        <div className="mt-2 text-[10px] text-slate-500">
+                          首次进入看板将自动触发新手引导。你也可以在右上角手动重播。
+                        </div>
+                      </>
+                    ) : (
+                      <div className="text-[10px] text-slate-500">OK</div>
+                    )}
+                  </div>
+                </div>
+              </aside>
+
+              {/* Main */}
+              <main className="flex-1 min-w-0 h-full overflow-hidden">
+                <div className="h-full flex flex-col">
+                  <header className="border-b border-white/10 bg-slate-950/40 backdrop-blur">
+                    <div className="px-5 py-4 flex items-center justify-between gap-3">
+                      <div className="min-w-0">
+                        <div className="text-xs text-slate-500 tracking-widest">YUNYAN · ELN</div>
+                        <div className="mt-1 text-sm text-white truncate">{activeName}</div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <div className="hidden md:flex items-center gap-2">
+                          <span className="text-[10px] text-slate-500">快捷键</span>
+                          <span className="text-[10px] text-slate-300 border border-white/10 bg-white/5 rounded-full px-2 py-1">
+                            N 新建
+                          </span>
+                          <span className="text-[10px] text-slate-300 border border-white/10 bg-white/5 rounded-full px-2 py-1">
+                            G 列表
+                          </span>
+                          <span className="text-[10px] text-slate-300 border border-white/10 bg-white/5 rounded-full px-2 py-1">
+                            A 分析
+                          </span>
+                          <span className="text-[10px] text-slate-300 border border-white/10 bg-white/5 rounded-full px-2 py-1">
+                            Ctrl+B 侧栏
+                          </span>
+                        </div>
+                        <button
+                          type="button"
+                          className="rounded-2xl border border-white/10 bg-white/5 px-4 py-2 text-xs text-slate-200 hover:bg-white/10 transition"
+                          onClick={() => {
+                            localStorage.removeItem("yunyan_onboarding_v1_done");
+                            alert("已清除引导标记。回到「工作台看板」将再次自动启动引导。");
+                          }}
+                        >
+                          重播引导
+                        </button>
+                      </div>
+                    </div>
+                  </header>
+
+                  <div className="flex-1 min-h-0 overflow-auto">
+                    <div className="p-5 h-full">{view}</div>
+                  </div>
+                </div>
+              </main>
+            </div>
+          </div>
+        );
+      }
+
+      ReactDOM.createRoot(document.getElementById("root")).render(<App />);
+    </script>
+  </body>
+</html>
+
